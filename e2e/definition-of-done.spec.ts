@@ -21,15 +21,14 @@ test("first-release checklist", async ({ page }, testInfo) => {
   await expect(page.getByText("Chicken Pot Pie with Biscuit")).toBeVisible();
 
   // 4. Count a stack of slips: 15 frittata + 31 pot pie (from the notebook photo)
+  // Tally box names are pre-written from the menu and can be rewritten like the notebook
+  await expect(page.getByRole("textbox", { name: "Tally box 1" })).toHaveValue("Vegetable Frittata");
   await page.getByRole("button", { name: /Start counting dinner/ }).click();
   const main = page.getByRole("button", { name: /^Count one Vegetable Frittata/ });
   const alt = page.getByRole("button", { name: /^Count one Chicken Pot Pie/ });
-  // Granite stack, then Lilac
   for (let i = 0; i < 15; i++) await main.click();
-  await page.getByRole("radio", { name: /^Lilac/ }).click();
   for (let i = 0; i < 31; i++) await alt.click();
-  await expect(page.getByRole("radio", { name: /^Granite/ })).toContainText("15 slips");
-  await expect(page.getByRole("radio", { name: /^Lilac/ })).toContainText("31 slips");
+  await expect(page.getByRole("radiogroup", { name: "Unit stack" })).toHaveCount(0); // units off by default
   await expect(page.getByTestId("total-meals")).toHaveText("46");
   await expect(page.getByTestId("count-main")).toHaveText("15");
   await expect(page.getByTestId("count-alt")).toHaveText("31");
@@ -38,6 +37,17 @@ test("first-release checklist", async ({ page }, testInfo) => {
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   await expect(page.getByTestId("total-meals")).toHaveText("45");
   await expect(page.getByTestId("count-alt")).toHaveText("30");
+
+  // Rewrite a box name; the count stays with it
+  await page.getByRole("button", { name: "Rename Vegetable Frittata" }).click();
+  await page.getByRole("dialog", { name: "Rename tally box" }).getByRole("textbox").fill("Veggfritata");
+  await page.getByRole("button", { name: "Save name" }).click();
+  await expect(page.getByTestId("count-main")).toHaveText("15");
+  await expect(page.getByRole("button", { name: /^Count one Veggfritata/ })).toBeVisible();
+
+  // Free-form notes
+  await page.getByRole("textbox", { name: "Notes for this meal" }).fill("Pull biscuits for tomorrow");
+  await page.getByRole("heading", { name: "Notes" }).click();
 
   // 7 (part). Additional items never change the meal total
   await page.getByRole("button", { name: "+ No biscuit – Chicken Pot Pie" }).click();
@@ -66,8 +76,6 @@ test("first-release checklist", async ({ page }, testInfo) => {
   const dialog = page.getByRole("dialog", { name: "Review count" });
   await expect(dialog.getByRole("row", { name: /Total resident meals 45/ })).toBeVisible();
   await expect(dialog.getByRole("row", { name: /\+ No biscuit – Chicken Pot Pie 3/ })).toBeVisible();
-  await expect(dialog.getByRole("row", { name: /^Lilac 30$/ })).toBeVisible();
-  await dialog.getByRole("checkbox").check(); // acknowledge "No slips counted for Birch"
   await expect(dialog.getByRole("row", { name: /Special requests \(separate\) 1/ })).toBeVisible();
   await dialog.getByRole("button", { name: "Mark count complete" }).click();
   await expect(page.getByText("Count complete")).toBeVisible();
@@ -105,6 +113,7 @@ test("first-release checklist", async ({ page }, testInfo) => {
   await page.reload();
   await expect(page.getByTestId("total-meals")).toHaveText("45");
   await expect(page.getByText("Grilled cheese — Demo 104R")).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Notes for this meal" })).toHaveValue("Pull biscuits for tomorrow");
 
   // 12. Export and restore demo data
   await page.goto("/stann/reports");

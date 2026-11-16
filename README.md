@@ -44,9 +44,12 @@ npm run build && npm run test:e2e   # Playwright: walks the release checklist on
 
 ## Counting a stack of slips
 
-1. **Counts** opens on Dinner. Check the menu and tap **Start counting**.
-2. Pick the unit stack you're on: **Granite**, **Lilac** or **Birch**. Each tap is tagged with that unit.
-3. One tap on a meal panel = one slip. Only the two entrées are tallied, with a running number and tally marks in fives.
+1. **Counts** opens on Dinner. The tally boxes are pre-written from the menu ("Vegetable Frittata",
+   "Chicken Pot Pie"). Write over them however you like ("Veggfritata", "Chicken pot"), add another box, or
+   start with no printed menu at all. Tap **Start counting**.
+2. One tap on a box = one slip, with a running number and tally marks in fives. Tap ✎ on a box to rename it
+   any time (the count stays), or **+ Add a tally box** mid-count.
+3. Use the **Notes** box at the bottom for anything else you'd normally jot down.
 4. **Modifications**: tap a suggestion like "+ No bun – Sloppy Joe" or "+ No biscuit – Chicken Pot Pie"
    (or type your own) to count it. They never change the meal total.
 5. **Unclear slip** for anything you can't read — you'll pick the meal before finishing.
@@ -64,7 +67,7 @@ same thing daily; the app then offers "Add for today" each day until you stop it
 - Rotation is set and confirmed: Week 1 started Sunday, Nov 8, 2026 (Mon Nov 16 = Week 2).
 - Menu flags from the photos are resolved ([details](docs/MENU_TRANSCRIPTION.md)).
 - **Reports → Kitchen settings**: serving times (dinner 4:45), the meal Counts opens on, unit names,
-  counting mode, tally marks, and whether to also count menu sides/desserts/fruit (off by default).
+  counting mode, tally marks, optional unit tabs (off by default), and whether to also count menu sides/desserts/fruit (off by default).
 - **Reports → Backup & restore**: download a JSON backup and restore it later or on another device.
 
 ## Docs

@@ -24,6 +24,8 @@ export interface CountOption {
   label: string;
   /** "main" | "alt" for menu entrées; "custom" / "unresolved" for the special panels. */
   role: "main" | "alt" | "custom" | "unresolved";
+  /** Full printed menu line this box came from, if any (used for suggestions). */
+  menuText?: string;
 }
 
 export interface ExtraItem {
@@ -66,6 +68,8 @@ export interface CountSession {
   units: string[];
   /** The unit stack currently being counted; new slips are tagged with it. */
   activeUnit: string | null;
+  /** Free-form notes for this meal — the cook's scratch space. */
+  notes?: string;
   events: CountEvent[];
   status: CountStatus;
   createdAt: string;
@@ -91,8 +95,24 @@ export function createSession(args: {
   mode?: CountMode;
   expectedSlips?: number | null;
   units?: string[];
+  /** Tally box names the cook wrote. Defaults to the menu's entrées. */
+  entrees?: string[];
 }): CountSession {
-  const { options, extras } = optionsFromMenu(args.menuItems);
+  const fromMenu = optionsFromMenu(args.menuItems);
+  const extras = fromMenu.extras;
+  let options = fromMenu.options;
+  if (args.entrees) {
+    const names = args.entrees.map((n) => n.trim()).filter(Boolean);
+    if (!names.length) throw new Error("Write at least one tally box name");
+    const menuEntrees = fromMenu.options.filter((o) => o.role === "main" || o.role === "alt");
+    options = [
+      ...names.map((label, i): CountOption => {
+        const m = menuEntrees[i];
+        return m ? { key: m.key, label, role: i === 0 ? "main" : "alt", menuText: m.label } : { key: newId("w"), label, role: i === 0 ? "main" : "alt" };
+      }),
+      ...fromMenu.options.filter((o) => o.role === "custom" || o.role === "unresolved"),
+    ];
+  }
   return {
     id: newId("cnt"),
     date: args.date,
@@ -140,6 +160,54 @@ export function tapItem(session: CountSession, itemKey: string, slipId?: string)
   return append(session, slipId ? { type: "item", itemKey, slipId } : { type: "item", itemKey });
 }
 
+/** Short, notebook-style name for an entrée: "Chicken Pot Pie with Biscuit" → "Chicken Pot Pie". */
+export function shortEntreeName(text: string): string {
+  return text.split(/,|\/| w\/ | with /i)[0]!.trim() || text.trim();
+}
+
+/** Write a new name on a tally box. Counts stay with the box. */
+export function renameOption(session: CountSession, key: string, label: string): CountSession {
+  const clean = label.trim();
+  if (!clean) throw new Error("Name can't be empty");
+  if (!session.options.some((o) => o.key === key)) throw new Error("Box not found");
+  return {
+    ...session,
+    options: session.options.map((o) => {
+      if (o.key !== key) return o;
+      const { menuText: _old, ...rest } = o; // a rewritten box is no longer the printed menu item
+      return { ...rest, label: clean };
+    }),
+  };
+}
+
+/** Add another tally box (e.g. a third entrée you wrote in). */
+export function addOption(session: CountSession, label: string): CountSession {
+  assertOpen(session);
+  const clean = label.trim();
+  if (!clean) throw new Error("Write a name for the box");
+  const entrees = session.options.filter((o) => o.role === "main" || o.role === "alt");
+  const rest = session.options.filter((o) => o.role !== "main" && o.role !== "alt");
+  const opt: CountOption = { key: newId("w"), label: clean, role: entrees.length ? "alt" : "main" };
+  return { ...session, options: [...entrees, opt, ...rest] };
+}
+
+/** Remove a tally box that has never been used. */
+export function removeOption(session: CountSession, key: string): CountSession {
+  assertOpen(session);
+  const opt = session.options.find((o) => o.key === key);
+  if (!opt || (opt.role !== "main" && opt.role !== "alt")) throw new Error("Only tally boxes you wrote can be removed");
+  const used = session.events.some((e) => (e.type === "slip" || e.type === "resolve" ? e.choice === key : e.type === "correction" && e.target.kind === "slip" && e.target.choice === key));
+  if (used) throw new Error("This box has counts on it — undo or correct them first, or just rename it");
+  const remaining = session.options.filter((o) => o.key !== key);
+  if (!remaining.some((o) => o.role === "main" || o.role === "alt")) throw new Error("Keep at least one tally box");
+  return { ...session, options: remaining };
+}
+
+export function setNotes(session: CountSession, notes: string): CountSession {
+  if (notes.length > 5000) throw new Error("Notes are too long");
+  return { ...session, notes };
+}
+
 /** Switch to another unit's slip stack. */
 export function setActiveUnit(session: CountSession, unit: string | null): CountSession {
   if (unit !== null && !(session.units ?? []).includes(unit)) throw new Error(`Unknown unit: ${unit}`);
@@ -163,7 +231,8 @@ export function modificationSuggestions(session: CountSession): string[] {
   for (const o of session.options) {
     if (o.role !== "main" && o.role !== "alt") continue;
     const short = o.label.split(/[,/]| w\/ | with /i)[0]!.trim();
-    for (const [re, mod] of rules) if (re.test(o.label)) out.push(`${mod} – ${short}`);
+    const text = `${o.label} ${o.menuText ?? ""}`;
+    for (const [re, mod] of rules) if (re.test(text)) out.push(`${mod} – ${short}`);
   }
   const existing = new Set(session.extras.map((e) => e.label.toLowerCase()));
   return [...new Set(out)].filter((l) => !existing.has(l.toLowerCase()));

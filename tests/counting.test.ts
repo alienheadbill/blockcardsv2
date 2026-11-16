@@ -160,6 +160,44 @@ describe("counting", () => {
     expect(C.modificationSuggestions(s)).not.toContain("No bun – Sloppy Joe on a Bun");
   });
 
+  it("uses the cook's written box names, keeping menu keys for the first boxes", () => {
+    const s = C.createSession({ date: "2026-11-16", meal: "dinner", menuItems: menu, entrees: ["Veggfritata", "Chicken pot", "Grilled cheese"] });
+    expect(s.options.map((o) => [o.label, o.role])).toEqual([
+      ["Veggfritata", "main"],
+      ["Chicken pot", "alt"],
+      ["Grilled cheese", "alt"],
+      ["Custom / Other", "custom"],
+      ["Unclear slip", "unresolved"],
+    ]);
+    expect(s.options[0]!.key).toBe(MAIN);
+    expect(C.shortEntreeName("Chicken Pot Pie with Biscuit")).toBe("Chicken Pot Pie");
+    expect(C.shortEntreeName("Vegetable Frittata, Hash Pattie")).toBe("Vegetable Frittata");
+  });
+
+  it("renames boxes without losing counts; adds and removes unused boxes", () => {
+    let s = tap(fresh(), MAIN, 4);
+    s = C.renameOption(s, MAIN, "Veggfritata");
+    expect(C.summarize(s).byChoice[MAIN]).toBe(4);
+    expect(C.labelFor(s, MAIN)).toBe("Veggfritata");
+    expect(() => C.renameOption(s, MAIN, " ")).toThrow();
+    s = C.addOption(s, "Beef stew");
+    const stew = s.options.find((o) => o.label === "Beef stew")!;
+    expect(s.options.indexOf(stew)).toBe(2); // before Custom / Unclear
+    s = C.tapSlip(s, stew.key);
+    expect(C.summarize(s).totalMeals).toBe(5);
+    expect(() => C.removeOption(s, stew.key)).toThrow(/counts/);
+    s = C.undo(s);
+    expect(() => C.removeOption(s, stew.key)).toThrow(/counts/); // undone taps still in the log
+    s = C.addOption(s, "Oops");
+    s = C.removeOption(s, s.options.find((o) => o.label === "Oops")!.key);
+    expect(s.options.some((o) => o.label === "Oops")).toBe(false);
+  });
+
+  it("keeps free-form notes on the count", () => {
+    const s = C.setNotes(fresh(), "Pull biscuits\nRm 104R wants extra gravy");
+    expect(s.notes).toContain("gravy");
+  });
+
   it("groups tallies in fives", () => {
     expect(C.tallyGroups(0)).toEqual([]);
     expect(C.tallyGroups(12)).toEqual([5, 5, 2]);

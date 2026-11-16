@@ -323,6 +323,8 @@ export function PromptSheet({
   confirm,
   onClose,
   onSubmit,
+  initial = "",
+  extra,
 }: {
   open: boolean;
   title: string;
@@ -331,8 +333,10 @@ export function PromptSheet({
   confirm: string;
   onClose: () => void;
   onSubmit: (value: string) => boolean | void;
+  initial?: string;
+  extra?: React.ReactNode;
 }) {
-  const [value, setValue] = useState("");
+  const [value, setValue] = useState(initial);
   return (
     <Sheet open={open} onClose={onClose} title={title}>
       <form
@@ -352,6 +356,7 @@ export function PromptSheet({
         <Button type="submit" size="lg" className="w-full" disabled={!value.trim()}>
           {confirm}
         </Button>
+        {extra}
       </form>
     </Sheet>
   );

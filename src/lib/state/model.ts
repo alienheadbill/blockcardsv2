@@ -13,7 +13,7 @@ import { makeRecipe, starterRecipes, type Recipe } from "../recipes/recipes";
 import type { SpecialRequest, StandingRequest } from "../requests";
 import type { WorkspaceId } from "../workspaces";
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 export interface AuditEvent {
   id: string;
@@ -109,6 +109,7 @@ export interface AppState {
   workspaces: { stann: StAnnData; truck: TruckData; home: HomeData };
 }
 
+/** Unit names the facility uses; offered as a suggestion in settings (off by default). */
 export const DEFAULT_UNITS = ["Granite", "Lilac", "Birch"];
 
 export const DEFAULT_STANN_SETTINGS: StAnnData["settings"] = {
@@ -116,7 +117,7 @@ export const DEFAULT_STANN_SETTINGS: StAnnData["settings"] = {
   servingTimes: { breakfast: "07:30", lunch: "12:00", dinner: "16:45" },
   defaultCountMode: "quick",
   showTallyMarks: true,
-  units: DEFAULT_UNITS,
+  units: [],
   defaultMeal: "dinner",
   countMenuSides: false,
 };
@@ -187,7 +188,7 @@ export function initialState(): AppState {
 
   const stann: StAnnData = {
     ...common(starterRecipes()),
-    settings: { ...DEFAULT_STANN_SETTINGS, units: [...DEFAULT_UNITS] },
+    settings: { ...DEFAULT_STANN_SETTINGS, units: [] },
     rotation: { seasonId: "fall-winter", week1Start: "2026-11-08", confirmed: true, note: CONFIRMED_ANCHOR_NOTE },
     corrections: {},
     menuHistory: [],
@@ -255,7 +256,7 @@ export function migrate(raw: any): any {
         ...old,
         // 5:00 was a placeholder; the kitchen serves dinner at 4:45.
         servingTimes: { ...DEFAULT_STANN_SETTINGS.servingTimes, ...(old.servingTimes ?? {}), ...(old.servingTimes?.dinner === "17:00" ? { dinner: "16:45" } : {}) },
-        units: Array.isArray(old.units) ? old.units : [...DEFAULT_UNITS],
+        units: Array.isArray(old.units) ? old.units : [],
       };
       st.standingRequests ??= [];
       if (st.rotation && st.rotation.week1Start === "2026-11-08" && !st.rotation.confirmed) {
@@ -267,6 +268,12 @@ export function migrate(raw: any): any {
       }
     }
     raw.schemaVersion = 2;
+  }
+  if (raw.schemaVersion === 2) {
+    // Units turned out not to matter to the cook: switch off the default Granite/Lilac/Birch tabs.
+    const settings = raw.workspaces?.stann?.settings;
+    if (settings && Array.isArray(settings.units) && settings.units.join("|") === DEFAULT_UNITS.join("|")) settings.units = [];
+    raw.schemaVersion = 3;
   }
   return raw;
 }

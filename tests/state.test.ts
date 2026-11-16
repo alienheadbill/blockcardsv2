@@ -12,7 +12,7 @@ describe("app state", () => {
     const s = initialState();
     expect(s.workspaces.stann.rotation.confirmed).toBe(true);
     expect(s.workspaces.stann.settings.servingTimes.dinner).toBe("16:45");
-    expect(s.workspaces.stann.settings.units).toEqual(["Granite", "Lilac", "Birch"]);
+    expect(s.workspaces.stann.settings.units).toEqual([]); // units don't matter to the cook — off by default
     expect(ops.mealFor(s, DATE, "dinner").position).toMatchObject({ week: 2, dayName: "Monday" });
   });
 
@@ -109,6 +109,25 @@ describe("app state", () => {
     expect(st.settings.servingTimes.dinner).toBe("16:45");
     expect(st.standingRequests).toEqual([]);
     expect(Object.keys(st.counts)).toHaveLength(1);
+  });
+
+  it("v2 data drops the default unit tabs but keeps custom ones", () => {
+    const v2 = JSON.parse(JSON.stringify(initialState()));
+    v2.schemaVersion = 2;
+    v2.workspaces.stann.settings.units = ["Granite", "Lilac", "Birch"];
+    expect(migrate(JSON.parse(JSON.stringify(v2))).workspaces.stann.settings.units).toEqual([]);
+    v2.workspaces.stann.settings.units = ["East", "West"];
+    expect(migrate(v2).workspaces.stann.settings.units).toEqual(["East", "West"]);
+  });
+
+  it("starts a count with the cook's own box names, even with no printed menu", () => {
+    let s = ops.startSession(initialState(), DATE, "dinner", ["Veggfritata", "Chicken pot"]);
+    expect(ops.getSession(s, DATE, "dinner")!.options.slice(0, 2).map((o) => o.label)).toEqual(["Veggfritata", "Chicken pot"]);
+    const s0 = initialState();
+    const noMenu = { ...s0, workspaces: { ...s0.workspaces, stann: { ...s0.workspaces.stann, rotation: { ...s0.workspaces.stann.rotation, week1Start: null } } } };
+    s = ops.startSession(noMenu, DATE, "dinner", ["Grilled cheese", "Egg salad"]);
+    expect(ops.getSession(s, DATE, "dinner")!.options[0]!.label).toBe("Grilled cheese");
+    expect(() => ops.startSession(noMenu, DATE, "lunch", ["  "])).toThrow();
   });
 
   it("adds daily regulars for a service only once", () => {

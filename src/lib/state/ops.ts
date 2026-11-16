@@ -106,12 +106,20 @@ export function getSession(state: AppState, date: ISODate, meal: MealService) {
   return state.workspaces.stann.counts[C.sessionKey(date, meal)];
 }
 
-export function startSession(state: AppState, date: ISODate, meal: MealService): AppState {
+export function startSession(state: AppState, date: ISODate, meal: MealService, entrees?: string[]): AppState {
   if (getSession(state, date, meal)) return state;
   const resolved = mealFor(state, date, meal);
-  if (!resolved.items.length) throw new Error("No menu for this service yet — set the rotation start date or add a menu change first.");
+  if (!resolved.items.length && !entrees?.some((e) => e.trim()))
+    throw new Error("No menu for this service yet — write the tally box names, or set the rotation start date.");
   const settings = state.workspaces.stann.settings;
-  const session = C.createSession({ date, meal, menuItems: resolved.items, mode: settings.defaultCountMode, units: settings.units ?? [] });
+  const session = C.createSession({
+    date,
+    meal,
+    menuItems: resolved.items,
+    mode: settings.defaultCountMode,
+    units: settings.units ?? [],
+    ...(entrees ? { entrees } : {}),
+  });
   return updateWorkspace(state, "stann", (d) => ({ ...d, counts: { ...d.counts, [C.sessionKey(date, meal)]: session } }), {
     action: "count.start",
     detail: `${date} ${meal}`,
@@ -132,25 +140,6 @@ export function updateSession(
   const next = fn(current);
   if (next === current) return state;
   return updateWorkspace(state, "stann", (d) => ({ ...d, counts: { ...d.counts, [key]: next } }), log);
-}
-
-/** Rebuild panels after a menu change, keeping every recorded event. */
-export function refreshSessionMenu(state: AppState, date: ISODate, meal: MealService): AppState {
-  const resolved = mealFor(state, date, meal);
-  return updateSession(
-    state,
-    date,
-    meal,
-    (s) => {
-      const fresh = C.optionsFromMenu(resolved.items);
-      const used = new Set(s.events.flatMap((e) => (e.type === "slip" || e.type === "resolve" ? [e.choice] : e.type === "correction" && e.target.kind === "slip" ? [e.target.choice] : [])));
-      const keep = s.options.filter((o) => used.has(o.key) && !fresh.options.some((f) => f.key === o.key));
-      const usedItems = new Set(s.events.flatMap((e) => (e.type === "item" ? [e.itemKey] : e.type === "correction" && e.target.kind === "item" ? [e.target.itemKey] : [])));
-      const keepExtras = s.extras.filter((x) => (usedItems.has(x.key) || x.key.startsWith("x_")) && !fresh.extras.some((f) => f.key === x.key));
-      return { ...s, options: [...fresh.options, ...keep], extras: [...fresh.extras, ...keepExtras] };
-    },
-    { action: "count.refresh-menu", detail: `${date} ${meal}` },
-  );
 }
 
 // ───────────────────────── requests ─────────────────────────

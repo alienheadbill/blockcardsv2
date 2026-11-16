@@ -49,29 +49,64 @@ export function CountScreen() {
 }
 
 function StartCount({ date, meal, resolved }: { date: string; meal: MealService; resolved: ReturnType<typeof ops.mealFor> }) {
+  const menuNames = resolved.items.filter((i) => i.kind === "main" || i.kind === "alt").map((i) => C.shortEntreeName(i.text));
+  return <StartForm key={`${date}-${meal}-${menuNames.join("|")}`} date={date} meal={meal} resolved={resolved} menuNames={menuNames} />;
+}
+
+function StartForm({ date, meal, resolved, menuNames }: { date: string; meal: MealService; resolved: ReturnType<typeof ops.mealFor>; menuNames: string[] }) {
   const units = useAppState((s) => s.workspaces.stann.settings.units ?? []);
-  if (resolved.source === "unanchored") {
-    return (
-      <Banner>
-        The menu rotation start date isn&apos;t set, so there&apos;s no menu for this date.{" "}
-        <Link href="/stann/menu#rotation" className="underline">
-          Set Week 1 start date
-        </Link>
-        .
-      </Banner>
-    );
-  }
+  const [names, setNames] = useState<string[]>(menuNames.length ? menuNames : ["", ""]);
+  const filled = names.filter((n) => n.trim());
   return (
-    <Card title={`${MEAL_LABELS[meal]} · ${positionLabel(resolved)}`}>
+    <Card title={`${MEAL_LABELS[meal]}${resolved.position ? ` · ${positionLabel(resolved)}` : ""}`}>
       {resolved.source === "override" && (
         <div className="mb-2">
           <Banner tone="info">Menu changed for this date: {resolved.overrideReason}</Banner>
         </div>
       )}
-      <MenuList items={resolved.items} />
-      <div className="mt-4 space-y-3">
+      {resolved.items.length > 0 ? (
+        <details open className="mb-3 rounded-xl bg-surface-2 p-2">
+          <summary className="cursor-pointer text-sm font-semibold text-muted">Today&apos;s printed menu</summary>
+          <div className="mt-2">
+            <MenuList items={resolved.items} compact />
+          </div>
+        </details>
+      ) : (
+        <p className="mb-3 text-sm text-muted">No printed menu for this date — just write your boxes.</p>
+      )}
+      <p className="mb-2 text-sm font-bold">Write your tally boxes</p>
+      <div className="paper space-y-2 rounded-xl border border-line p-2">
+        {names.map((n, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <input
+              className={`${inputCls} font-[family-name:var(--font-hand)] text-lg font-bold`}
+              value={n}
+              onChange={(e) => setNames((x) => x.map((y, j) => (j === i ? e.target.value : y)))}
+              placeholder={i === 0 ? "e.g. Veg Frittata" : "e.g. Chicken Pot Pie"}
+              aria-label={`Tally box ${i + 1}`}
+              autoComplete="off"
+            />
+            {names.length > 1 && (
+              <button type="button" className="p-2 text-muted" aria-label={`Remove box ${i + 1}`} onClick={() => setNames((x) => x.filter((_, j) => j !== i))}>
+                <Icon name="x" />
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+      <div className="mt-2 flex gap-2">
+        <Button size="sm" variant="ghost" onClick={() => setNames((x) => [...x, ""])}>
+          + Another box
+        </Button>
+        {menuNames.length > 0 && names.join("|") !== menuNames.join("|") && (
+          <Button size="sm" variant="ghost" onClick={() => setNames(menuNames)}>
+            Use menu names
+          </Button>
+        )}
+      </div>
+      <div className="mt-3 space-y-3">
         {units.length > 0 && <p className="text-sm text-muted">You&apos;ll count each unit&apos;s stack in turn: {units.join(", ")}.</p>}
-        <Button size="lg" className="w-full" onClick={() => act((s) => ops.startSession(s, date, meal))}>
+        <Button size="lg" className="w-full" disabled={!filled.length} onClick={() => act((s) => ops.startSession(s, date, meal, names))}>
           <Icon name="tally" /> Start counting {MEAL_LABELS[meal].toLowerCase()}
         </Button>
       </div>
@@ -104,6 +139,8 @@ function ActiveCount({
   const [reopenOpen, setReopenOpen] = useState(false);
   const [practice, setPractice] = useState(false);
   const [logOpen, setLogOpen] = useState(false);
+  const [renaming, setRenaming] = useState<C.CountOption | null>(null);
+  const [addingBox, setAddingBox] = useState(false);
   const locked = session.status === "complete";
   const entrees = session.options.filter((o) => o.role === "main" || o.role === "alt");
   const special = session.options.filter((o) => o.role === "custom" || o.role === "unresolved");
@@ -161,12 +198,16 @@ function ActiveCount({
           {activeUnit ? (
             <Stat label={activeUnit} value={summary.byUnit[activeUnit]?.total ?? 0} />
           ) : (
-            <Stat label="In stack" value={session.expectedSlips ?? "—"} warn={summary.discrepancy !== null && summary.discrepancy < 0} />
+            session.expectedSlips != null ? (
+              <Stat label="In stack" value={session.expectedSlips} warn={summary.discrepancy !== null && summary.discrepancy < 0} />
+            ) : (
+              <Stat label="Mods" value={session.extras.filter((x) => x.key.startsWith("x_")).reduce((n, x) => n + (summary.items[x.key] ?? 0), 0)} />
+            )
           )}
         </div>
       </div>
 
-      {menuChanged && <Banner tone="info">The menu for this service was changed after the count was set up. Use “Refresh panels” below if a new item is missing.</Banner>}
+      {menuChanged && <Banner tone="info">The menu for this date was changed. Tap ✎ on a box to rewrite its name if needed.</Banner>}
 
       {locked ? (
         <Banner tone="info">
@@ -240,23 +281,38 @@ function ActiveCount({
       {/* Main tally panels — the two-column notebook */}
       <div className={`grid gap-3 ${entrees.length === 1 ? "grid-cols-1" : "grid-cols-2"}`}>
         {entrees.map((o) => (
+          <div key={o.key} className="relative">
           <button
-            key={o.key}
             type="button"
             disabled={locked}
             onClick={() => tap(o.key)}
             aria-label={`Count one ${o.label}. Now ${summary.byChoice[o.key] ?? 0}.`}
-            className="paper flex min-h-44 flex-col rounded-2xl border-2 border-ink/70 p-3 text-left shadow-sm transition active:scale-[0.97] active:bg-accent-soft disabled:opacity-70"
+            className="paper flex h-full min-h-44 w-full flex-col rounded-2xl border-2 border-ink/70 p-3 pt-4 text-left shadow-sm transition active:scale-[0.97] active:bg-accent-soft disabled:opacity-70"
           >
-            <span className="mb-1 text-xs font-bold uppercase tracking-wide text-muted">{o.role === "main" ? "Main" : "Alternate"}</span>
-            <span className="line-clamp-3 border-b-2 border-ink/60 pb-1 font-[family-name:var(--font-hand)] text-lg font-bold leading-snug">{o.label}</span>
+            <span className="line-clamp-3 border-b-2 border-ink/60 pb-1 pr-8 font-[family-name:var(--font-hand)] text-lg font-bold leading-snug">{o.label}</span>
             <span className="mt-2 flex-1">{showTally && <TallyMarks count={summary.byChoice[o.key] ?? 0} />}</span>
             <span className="mt-2 self-center rounded-lg border-2 border-ink px-4 text-4xl font-extrabold tabular-nums" data-testid={`count-${o.role}`}>
               {summary.byChoice[o.key] ?? 0}
             </span>
           </button>
+          {!locked && (
+            <button
+              type="button"
+              onClick={() => setRenaming(o)}
+              aria-label={`Rename ${o.label}`}
+              className="absolute right-1.5 top-1.5 flex h-10 w-10 items-center justify-center rounded-full bg-surface/90 text-muted shadow-sm"
+            >
+              <Icon name="edit" className="h-5 w-5" />
+            </button>
+          )}
+          </div>
         ))}
       </div>
+      {!locked && (
+        <Button variant="ghost" size="sm" onClick={() => setAddingBox(true)}>
+          + Add a tally box
+        </Button>
+      )}
 
       <div className="grid grid-cols-2 gap-3">
         {special.map((o) => (
@@ -323,15 +379,14 @@ function ActiveCount({
 
       <RequestsPanel date={date} meal={meal} countSessionId={session.id} />
 
+      <NotesCard key={session.id} initial={session.notes ?? ""} onSave={(v) => update((s) => C.setNotes(s, v))} />
+
       <Card title="Count tools">
         <div className="flex flex-wrap gap-2">
           <Button size="sm" variant="outline" disabled={locked} onClick={() => setCorrectOpen(true)}>
             Manual correction
           </Button>
           <ExpectedButton session={session} disabled={locked} onSet={(n) => update((s) => C.setExpected(s, n))} />
-          <Button size="sm" variant="outline" disabled={locked} onClick={() => act((s) => ops.refreshSessionMenu(s, date, meal), "Panels updated from menu")}>
-            Refresh panels
-          </Button>
           <Button size="sm" variant="ghost" onClick={() => setLogOpen((v) => !v)} aria-expanded={logOpen}>
             {logOpen ? "Hide" : "Show"} tap log ({session.events.length})
           </Button>
@@ -360,6 +415,38 @@ function ActiveCount({
         </div>
       </div>
 
+      <PromptSheet
+        key={renaming?.key ?? "none"}
+        open={!!renaming}
+        title="Rename tally box"
+        label="Name"
+        initial={renaming?.label ?? ""}
+        help="Counts stay with the box."
+        confirm="Save name"
+        onClose={() => setRenaming(null)}
+        onSubmit={(v) => !!renaming && update((s) => C.renameOption(s, renaming.key, v))}
+        extra={
+          renaming && (summary.byChoice[renaming.key] ?? 0) === 0 ? (
+            <Button
+              variant="ghost"
+              className="w-full text-danger"
+              onClick={() => {
+                if (update((s) => C.removeOption(s, renaming.key))) setRenaming(null);
+              }}
+            >
+              Remove this box
+            </Button>
+          ) : null
+        }
+      />
+      <PromptSheet
+        open={addingBox}
+        title="Add a tally box"
+        label="Name"
+        confirm="Add box"
+        onClose={() => setAddingBox(false)}
+        onSubmit={(v) => update((s) => C.addOption(s, v))}
+      />
       <ReviewSheet open={reviewOpen} onClose={() => setReviewOpen(false)} session={session} requestTotal={reqCount} />
       <CorrectionSheet open={correctOpen} onClose={() => setCorrectOpen(false)} session={session} />
       <PromptSheet
@@ -635,5 +722,22 @@ function ReviewSheet({ open, onClose, session, requestTotal }: { open: boolean; 
         Mark count complete
       </Button>
     </Sheet>
+  );
+}
+
+function NotesCard({ initial, onSave }: { initial: string; onSave: (v: string) => boolean }) {
+  const [value, setValue] = useState(initial);
+  const dirty = value !== initial;
+  return (
+    <Card title="Notes" action={dirty ? <span className="text-xs font-semibold text-muted">saves when you tap away</span> : null}>
+      <textarea
+        className={`${inputCls} paper min-h-32 py-2 font-[family-name:var(--font-hand)] text-lg leading-8`}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={() => dirty && onSave(value)}
+        placeholder="Anything else for this meal — who wants what, what to pull, reminders…"
+        aria-label="Notes for this meal"
+      />
+    </Card>
   );
 }
