@@ -1,0 +1,120 @@
+@import "tailwindcss";
+
+/* Workspace themes. Each workspace sets its palette on [data-ws]. */
+:root,
+[data-ws="stann"] {
+  --bg: #eef1f6;
+  --surface: #ffffff;
+  --surface-2: #f5f7fb;
+  --ink: #0d1626;
+  --muted: #4a5568;
+  --border: #cfd6e3;
+  --primary: #1b2a4a; /* navy */
+  --primary-ink: #ffffff;
+  --accent: #b8901f; /* muted gold */
+  --accent-soft: #f6eccc;
+  --accent-ink: #1b2a4a;
+  --paper: #fffdf6;
+  --rule: #b9d7ea;
+  --ok: #17703a;
+  --ok-soft: #dff3e6;
+  --warn: #8a5a00;
+  --warn-soft: #fff1cf;
+  --danger: #b42318;
+  --danger-soft: #fde4e1;
+}
+[data-ws="truck"] {
+  --bg: #f4f4f3;
+  --surface: #ffffff;
+  --surface-2: #f7f7f6;
+  --ink: #161618;
+  --muted: #4b4b52;
+  --border: #d6d6d3;
+  --primary: #26272b; /* charcoal */
+  --primary-ink: #ffffff;
+  --accent: #e2570f; /* orange */
+  --accent-soft: #ffe6d6;
+  --accent-ink: #ffffff;
+  --paper: #ffffff;
+  --rule: #e5e5e2;
+}
+[data-ws="home"] {
+  --bg: #f6f2e7; /* cream */
+  --surface: #fffdf8;
+  --surface-2: #f3eee1;
+  --ink: #1f2a22;
+  --muted: #536056;
+  --border: #d9d2bf;
+  --primary: #4f7356; /* sage */
+  --primary-ink: #ffffff;
+  --accent: #a8823f;
+  --accent-soft: #efe5cf;
+  --accent-ink: #ffffff;
+  --paper: #fffdf8;
+  --rule: #e2dccb;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--border);
+  --color-primary: var(--primary);
+  --color-primary-ink: var(--primary-ink);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-ink: var(--accent-ink);
+  --color-paper: var(--paper);
+  --color-rule: var(--rule);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-hand: "Bradley Hand", "Segoe Print", "Comic Sans MS", ui-rounded, cursive;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  overscroll-behavior-y: none;
+}
+button {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Notebook paper: blue rules like the spiral pad. */
+.paper {
+  background-color: var(--paper);
+  background-image: repeating-linear-gradient(to bottom, transparent 0, transparent 31px, var(--rule) 31px, var(--rule) 32px);
+}
+
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: white;
+  }
+  .print-full {
+    max-width: none !important;
+    padding: 0 !important;
+  }
+}

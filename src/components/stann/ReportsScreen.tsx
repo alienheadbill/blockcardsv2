@@ -1,0 +1,184 @@
+"use client";
+import { useMemo } from "react";
+import * as C from "@/lib/counting";
+import { addDays, formatShort } from "@/lib/dates";
+import { MEAL_LABELS, MEAL_SERVICES, type MealService } from "@/lib/menu/types";
+import { groupRequests } from "@/lib/requests";
+
+import { useAppState } from "@/lib/state/store";
+import { DateBar, useDateMeal } from "../DateMealBar";
+import { Icon } from "../Icon";
+import { AuditLog, BackupPanel } from "../Inventory";
+import { act, Badge, Button, Card, csv, downloadFile, Empty, Field, inputCls } from "../ui";
+
+export function ReportsScreen() {
+  const { date, set } = useDateMeal();
+  const d = useAppState((s) => s.workspaces.stann);
+  const week = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(date, i - 6)), [date]);
+
+  const exportCounts = () => {
+    const rows: (string | number)[][] = [["Date", "Meal", "Status", "Choice / item", "Type", "Count"]];
+    for (const s of Object.values(d.counts).sort((a, b) => a.date.localeCompare(b.date))) {
+      const sum = C.summarize(s);
+      for (const o of s.options) rows.push([s.date, MEAL_LABELS[s.meal], s.status, o.label, o.role, sum.byChoice[o.key] ?? 0]);
+      for (const x of s.extras) rows.push([s.date, MEAL_LABELS[s.meal], s.status, x.label, "item", sum.items[x.key] ?? 0]);
+      rows.push([s.date, MEAL_LABELS[s.meal], s.status, "TOTAL MEALS", "total", sum.totalMeals]);
+    }
+    downloadFile(`meal-counts-${date}.csv`, csv(rows), "text/csv");
+  };
+
+  return (
+    <div className="space-y-4">
+      <DateBar date={date} onChange={(x) => set({ date: x })} subtitle="Production report" />
+
+      <Card title="Production for the day" action={<Button size="sm" variant="outline" onClick={() => window.print()} aria-label="Print"><Icon name="print" className="h-5 w-5" /></Button>}>
+        <div className="space-y-4">
+          {MEAL_SERVICES.map((m) => (
+            <MealProduction key={m} date={date} meal={m} />
+          ))}
+        </div>
+      </Card>
+
+      <Card title="Last 7 days" action={<Button size="sm" variant="outline" onClick={exportCounts}>Export CSV</Button>}>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-muted">
+              <th className="py-1">Date</th>
+              {MEAL_SERVICES.map((m) => (
+                <th key={m} className="py-1 text-right">
+                  {MEAL_LABELS[m]}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {week.map((day) => (
+              <tr key={day} className="border-t border-line">
+                <td className="py-1.5 font-semibold">{formatShort(day)}</td>
+                {MEAL_SERVICES.map((m) => {
+                  const s = d.counts[C.sessionKey(day, m)];
+                  return (
+                    <td key={m} className="py-1.5 text-right tabular-nums">
+                      {s ? (
+                        <>
+                          {C.summarize(s).totalMeals}
+                          {s.status === "complete" ? " ✓" : " …"}
+                        </>
+                      ) : (
+                        <span className="text-muted">—</span>
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p className="mt-2 text-xs text-muted">✓ reviewed & complete · … still counting</p>
+      </Card>
+
+      <Settings />
+
+      <Card title={<span className="flex items-center gap-2"><Icon name="lock" className="h-5 w-5" /> Facility mode</span>}>
+        <p className="text-sm text-muted">
+          This build runs in <strong>demo mode</strong>: fictional rooms only, data kept on this device. Facility mode (real residents, diet orders, multiple staff
+          logins) is switched off until the facility approves the hosting, security model, access controls and any required business associate agreements. See{" "}
+          <code>docs/SECURITY_CHECKLIST.md</code>.
+        </p>
+        <Badge tone="neutral">Disabled</Badge>
+      </Card>
+
+      <BackupPanel ws="stann" />
+      <AuditLog ws="stann" />
+    </div>
+  );
+}
+
+function MealProduction({ date, meal }: { date: string; meal: MealService }) {
+  const d = useAppState((s) => s.workspaces.stann);
+  const session = d.counts[C.sessionKey(date, meal)];
+  const groups = groupRequests(d.requests.filter((r) => r.date === date && r.meal === meal));
+  const sum = session ? C.summarize(session) : null;
+  return (
+    <div className="rounded-xl border border-line p-3 print:break-inside-avoid">
+      <div className="mb-1 flex items-center justify-between">
+        <h3 className="font-extrabold">{MEAL_LABELS[meal]}</h3>
+        {session ? <Badge tone={session.status === "complete" ? "ok" : "warn"}>{session.status === "complete" ? "Complete" : "Not finished"}</Badge> : <Badge>Not counted</Badge>}
+      </div>
+      {!session && groups.length === 0 ? (
+        <Empty>No count or requests.</Empty>
+      ) : (
+        <table className="w-full text-sm">
+          <tbody>
+            {session &&
+              session.options
+                .filter((o) => (sum!.byChoice[o.key] ?? 0) > 0)
+                .map((o) => (
+                  <tr key={o.key} className="border-b border-line">
+                    <td className="py-1">{o.label}</td>
+                    <td className="py-1 text-right font-bold tabular-nums">{sum!.byChoice[o.key]}</td>
+                  </tr>
+                ))}
+            {session && (
+              <tr className="border-b-2 border-ink font-extrabold">
+                <td className="py-1">Resident meals</td>
+                <td className="py-1 text-right tabular-nums">{sum!.totalMeals}</td>
+              </tr>
+            )}
+            {session &&
+              session.extras
+                .filter((x) => (sum!.items[x.key] ?? 0) > 0)
+                .map((x) => (
+                  <tr key={x.key} className="border-b border-line text-muted">
+                    <td className="py-1">+ {x.label}</td>
+                    <td className="py-1 text-right tabular-nums">{sum!.items[x.key]}</td>
+                  </tr>
+                ))}
+            {groups.map((g) => (
+              <tr key={g.item} className="border-b border-line">
+                <td className="py-1">Request: {g.item}</td>
+                <td className="py-1 text-right font-bold tabular-nums">{g.totalQuantity}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+function Settings() {
+  const settings = useAppState((s) => s.workspaces.stann.settings);
+  const save = (patch: Partial<typeof settings>) =>
+    act((s) => ({ ...s, workspaces: { ...s.workspaces, stann: { ...s.workspaces.stann, settings: { ...s.workspaces.stann.settings, ...patch } } } }));
+  return (
+    <Card title="Kitchen settings">
+      <div className="space-y-3">
+        <Field label="Identify requests by">
+          <select className={inputCls} value={settings.identifierType} onChange={(e) => save({ identifierType: e.target.value as "room" | "name" })}>
+            <option value="room">Room number</option>
+            <option value="name">Resident name (facility mode only)</option>
+          </select>
+        </Field>
+        <div className="grid grid-cols-3 gap-2">
+          {MEAL_SERVICES.map((m) => (
+            <Field key={m} label={`${MEAL_LABELS[m]} serves`}>
+              <input type="time" className={inputCls} value={settings.servingTimes[m]} onChange={(e) => e.target.value && save({ servingTimes: { ...settings.servingTimes, [m]: e.target.value } })} />
+            </Field>
+          ))}
+        </div>
+        <Field label="Default counting mode">
+          <select className={inputCls} value={settings.defaultCountMode} onChange={(e) => save({ defaultCountMode: e.target.value as "quick" | "detailed" })}>
+            <option value="quick">Quick count — one tap per slip</option>
+            <option value="detailed">Detailed — meal plus add-ons per slip</option>
+          </select>
+        </Field>
+        <label className="flex items-center gap-3">
+          <input type="checkbox" className="h-6 w-6" checked={settings.showTallyMarks} onChange={(e) => save({ showTallyMarks: e.target.checked })} />
+          <span className="font-semibold">Show tally marks on count panels</span>
+        </label>
+      </div>
+    </Card>
+  );
+}
+
