@@ -6,7 +6,7 @@
  */
 import { useSyncExternalStore } from "react";
 import { appStateSchema } from "./backup";
-import { initialState, type AppState } from "./model";
+import { initialState, migrate, type AppState } from "./model";
 
 export const STORAGE_KEY = "kitchen-blockcards:v1";
 
@@ -26,8 +26,12 @@ function load(): AppState {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return initialState();
-    const parsed = appStateSchema.safeParse(JSON.parse(raw));
-    if (parsed.success) return parsed.data as unknown as AppState;
+    const parsed = appStateSchema.safeParse(migrate(JSON.parse(raw)));
+    if (parsed.success) {
+      const next = parsed.data as unknown as AppState;
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      return next;
+    }
     // Keep the unreadable copy so nothing is lost; start fresh.
     window.localStorage.setItem(`${STORAGE_KEY}:unreadable:${Date.now()}`, raw);
     loadWarning = "Saved data could not be read, so a fresh demo was started. The old copy was kept in browser storage.";
@@ -76,7 +80,7 @@ function subscribe(listener: () => void) {
   const onStorage = (e: StorageEvent) => {
     if (e.key === STORAGE_KEY && e.newValue) {
       try {
-        const parsed = appStateSchema.safeParse(JSON.parse(e.newValue));
+        const parsed = appStateSchema.safeParse(migrate(JSON.parse(e.newValue)));
         if (parsed.success) {
           state = parsed.data as unknown as AppState;
           emit();

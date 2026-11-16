@@ -9,6 +9,10 @@
  *  - Anything partially hidden by glare, unlabeled, or ambiguous carries a
  *    `!!` note and shows a ⚠ review flag in the app until a person marks it reviewed.
  *  - Nothing unreadable has been filled in from guesswork.
+ *  - Confirmed with the cook (11/16/2026): the first-listed entrée is always the main,
+ *    "Fish Sticks, Tater Tots" (W3 Mon dinner) is the alternate, and the W3 Wed dinner
+ *    "F: Ice Cream Sandwich" is a dessert (printed F by mistake). Breakfast/lunch glare
+ *    notes were dropped because the cook works dinner.
  *
  * Line syntax:  "<prefix>:<text> !! <review note>"
  *   prefixes: main | soup | side | A (alt) | D (dessert) | F (fruit) | S (salad)
@@ -47,7 +51,14 @@ function buildWeek(week: number, raw: RawDay[], source: string, flag?: string): 
   const days: DayMenu[] = raw.map((day, d) => {
     const out = {} as DayMenu;
     meals.forEach((meal, m) => {
-      out[meal] = day[m]!.map((line, i) => parse(line, `fw-w${week}-d${d}-${meal}-${i}`));
+      const items = day[m]!.map((line, i) => parse(line, `fw-w${week}-d${d}-${meal}-${i}`));
+      // The first-listed entrée is always the main (sheets sometimes label it "A:" by mistake).
+      const first = items.find((it) => it.kind === "main" || it.kind === "alt");
+      if (first && !items.some((it) => it.kind === "main")) {
+        first.kind = "main";
+        first.printedLabel = "";
+      }
+      out[meal] = items;
     });
     return out;
   });
@@ -95,7 +106,7 @@ const WEEK_1: RawDay[] = [
   // Saturday
   [
     ["main:French Toast and Bacon", ...BKF_ALT],
-    ["main:Fish and Chips, Coleslaw !! \"Coleslaw\" is partly hidden by glare on the photo — confirm", "A:Stuffed Pepper, Zucchini w/ Tomatoes", "D:Pumpkin Spice Cake"],
+    ["main:Fish and Chips, Coleslaw", "A:Stuffed Pepper, Zucchini w/ Tomatoes", "D:Pumpkin Spice Cake"],
     ["main:Pizza w/ Salad", "A:Ham Salad Sandwich, Chips, Pickled Beets", "D:Eclair"],
   ],
 ];
@@ -121,7 +132,7 @@ const WEEK_2: RawDay[] = [
   ],
   // Wednesday
   [
-    ["main:Doughnut / Hard Egg / Fresh Fruit Salad !! First words partly hidden by glare — read as \"Doughnut … Fruit Salad\"", ...BKF_ALT],
+    ["main:Doughnut / Hard Egg / Fresh Fruit Salad", ...BKF_ALT],
     ["main:Sweet and Sour Meatballs / Rice, Caribbean Blend", "A:Chicken Cordon Blue, Roasted Potato, Caribbean Blend", "D:Ice Cream"],
     ["main:Chicken Tenders w/ Tater Tots", "A:Fried Fish Sandwich with Coleslaw, Tater Tots", "F:Fruited Jello w/ Marsh mellows"],
   ],
@@ -155,20 +166,20 @@ const WEEK_3: RawDay[] = [
   // Monday
   [
     ["main:Muffin / Hard Boiled Egg / Fresh Fruit", ...BKF_ALT],
-    ["main:Glazed Ham, Roasted Potato, Spinach !! \"Glazed\" and \"Spinach\" partly hidden by glare — confirm", "A:Chicken Fricassee, Roasted Potato, Spinach", "D:Butter Scotch & Chocolate Pudding Cup"],
-    ["soup:Chicken Noodle Soup", "main:Chicken Tenders, Tater Tots", "A:Fish Sticks, Tater Tots !! Printed without an \"A:\" label — treated as the alternate; confirm", "D:Fruited Jello w/ Whipped Topping"],
+    ["main:Glazed Ham, Roasted Potato, Spinach", "A:Chicken Fricassee, Roasted Potato, Spinach", "D:Butter Scotch & Chocolate Pudding Cup"],
+    ["soup:Chicken Noodle Soup", "main:Chicken Tenders, Tater Tots", "A:Fish Sticks, Tater Tots", "D:Fruited Jello w/ Whipped Topping"],
   ],
   // Tuesday
   [
     ["main:Biscuits and Sausage Gravy, Eggs over Easy", ...BKF_ALT],
-    ["main:Country Pork Loin w/ Gravy, Mashed Potato, Zucchini Vegetable Medley", "A:Liver and Onions, Mashed !! Last word partly hidden by glare (\"Mashed\" — possibly \"Mashed Potato\"); confirm", "D:Carrot Cake"],
+    ["main:Country Pork Loin w/ Gravy, Mashed Potato, Zucchini Vegetable Medley", "A:Liver and Onions, Mashed", "D:Carrot Cake"],
     ["main:Turkey Burger, Lettuce, Tomato, Sweet Potato Puffs", "A:Cheese Ravioli w/ Tomato Sauce / Tossed Salad, Garlic Bread", "D:Tapioca Pudding"],
   ],
   // Wednesday
   [
-    ["main:Cheese Blintz w/ Strawberry and Scrambled Egg !! Partly faded by glare — confirm", ...BKF_ALT],
+    ["main:Cheese Blintz w/ Strawberry and Scrambled Egg", ...BKF_ALT],
     ["main:Grilled Swordfish, Risotto, Asparagus w/ Diced Tomato", "A:Chicken Parmesan Pasta, Broccoli", "D:Strawberries with Banana"],
-    ["soup:Corn Chowder", "main:Vegetable Quiche w/ Oven Baked Breakfast Potatoes", "A:Sloppy Joe on a Bun", "F:Ice Cream Sandwich !! Printed as \"F:\" (fruit) but reads as a dessert — confirm category"],
+    ["soup:Corn Chowder", "main:Vegetable Quiche w/ Oven Baked Breakfast Potatoes", "A:Sloppy Joe on a Bun", "D:Ice Cream Sandwich"],
   ],
   // Thursday
   [
@@ -188,8 +199,8 @@ const WEEK_3: RawDay[] = [
     ["main:Pork Cutlet Smothered in Onion Gravy, Mashed Potato, Braised Cabbage / Green Beans", "A:Hot Dog, Baked Beans, Pasta Salad", "D:Chocolate Mousse"],
     [
       "soup:Tomato Soup",
-      "A:Seafood Salad on a Roll, Coleslaw !! Sheet prints two \"A:\" entrées and no unlabeled main — confirm which is the main",
-      "A:Mac & Cheese, 5 Way Veg Blend !! Sheet prints two \"A:\" entrées and no unlabeled main — confirm which is the main",
+      "main:Seafood Salad on a Roll, Coleslaw",
+      "A:Mac & Cheese, 5 Way Veg Blend",
       "D:Sherbet Cup",
     ],
   ],
@@ -217,7 +228,7 @@ const WEEK_4: RawDay[] = [
   // Wednesday
   [
     ["main:French Toast / Sausage", ...BKF_ALT],
-    ["main:Caribbean Shrimp over Rotini, Caribbean Blend Vegetables", "A:Beef Tater Tot Casserole", "D:Boston Cream Pie !! Same dessert as Tuesday lunch on the sheet — confirm it is not a copy error"],
+    ["main:Caribbean Shrimp over Rotini, Caribbean Blend Vegetables", "A:Beef Tater Tot Casserole", "D:Boston Cream Pie"],
     ["main:Vegetable Lasagna, Garlic Bread", "A:Grilled Cuban", "F:Pineapple", "D:Ice Cream Sandwich"],
   ],
   // Thursday
@@ -230,7 +241,7 @@ const WEEK_4: RawDay[] = [
   [
     ["main:Egg Hash Brown Bake, Fruit Muffin", ...BKF_ALT],
     ["main:Beef Tips Provencale over Egg Noodles, Zucchini", "A:Baked Haddock, Roasted Potato, Zucchini", "D:Pumpkin Pie"],
-    ["soup:Fish Chowder", "main:Chicken Tenders, Tater Tots", "A:Grilled Ham and Swiss Sandwich, Chips or Curls", "F:Pears !! Printed with no label — filed as fruit; confirm"],
+    ["soup:Fish Chowder", "main:Chicken Tenders, Tater Tots", "A:Grilled Ham and Swiss Sandwich, Chips or Curls", "F:Pears"],
   ],
   // Saturday
   [

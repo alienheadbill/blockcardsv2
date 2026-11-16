@@ -110,7 +110,8 @@ export function startSession(state: AppState, date: ISODate, meal: MealService):
   if (getSession(state, date, meal)) return state;
   const resolved = mealFor(state, date, meal);
   if (!resolved.items.length) throw new Error("No menu for this service yet — set the rotation start date or add a menu change first.");
-  const session = C.createSession({ date, meal, menuItems: resolved.items, mode: state.workspaces.stann.settings.defaultCountMode });
+  const settings = state.workspaces.stann.settings;
+  const session = C.createSession({ date, meal, menuItems: resolved.items, mode: settings.defaultCountMode, units: settings.units ?? [] });
   return updateWorkspace(state, "stann", (d) => ({ ...d, counts: { ...d.counts, [C.sessionKey(date, meal)]: session } }), {
     action: "count.start",
     detail: `${date} ${meal}`,
@@ -169,6 +170,37 @@ export function updateRequest(state: AppState, id: string, fn: (r: R.SpecialRequ
   return updateWorkspace(state, "stann", (d) => ({ ...d, requests: d.requests.map((r) => (r.id === id ? next : r)) }), {
     action,
     detail: `${next.item} for ${next.identifier}: ${R.VERIFICATION_LABELS[next.verification]} · ${R.STATUS_LABELS[next.status]}`,
+  });
+}
+
+export function addStandingRequest(state: AppState, input: Parameters<typeof R.createStanding>[0]): AppState {
+  const st = R.createStanding(input);
+  return updateWorkspace(state, "stann", (d) => ({ ...d, standingRequests: [...(d.standingRequests ?? []), st] }), {
+    action: "request.standing.add",
+    detail: `Every ${st.meal}: ${st.item} ×${st.quantity} for ${st.identifier}`,
+  });
+}
+
+export function setStandingActive(state: AppState, id: string, active: boolean): AppState {
+  const cur = state.workspaces.stann.standingRequests.find((x) => x.id === id);
+  if (!cur) throw new Error("Daily regular not found");
+  return updateWorkspace(
+    state,
+    "stann",
+    (d) => ({ ...d, standingRequests: d.standingRequests.map((x) => (x.id === id ? { ...x, active } : x)) }),
+    { action: active ? "request.standing.resume" : "request.standing.stop", detail: `${cur.item} for ${cur.identifier}` },
+  );
+}
+
+/** Add today's copies of the daily regulars for a service (skips ones already added). */
+export function addStandingForService(state: AppState, date: ISODate, meal: MealService, countSessionId?: string): AppState {
+  const d = state.workspaces.stann;
+  const pending = R.pendingStanding(d.standingRequests ?? [], d.requests, date, meal);
+  if (!pending.length) return state;
+  const created = pending.map((p) => R.fromStanding(p, date, countSessionId));
+  return updateWorkspace(state, "stann", (x) => ({ ...x, requests: [...x.requests, ...created] }), {
+    action: "request.standing.apply",
+    detail: `${date} ${meal}: ${created.length} daily regular(s)`,
   });
 }
 

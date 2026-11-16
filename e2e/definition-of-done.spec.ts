@@ -24,8 +24,12 @@ test("first-release checklist", async ({ page }, testInfo) => {
   await page.getByRole("button", { name: /Start counting dinner/ }).click();
   const main = page.getByRole("button", { name: /^Count one Vegetable Frittata/ });
   const alt = page.getByRole("button", { name: /^Count one Chicken Pot Pie/ });
+  // Granite stack, then Lilac
   for (let i = 0; i < 15; i++) await main.click();
+  await page.getByRole("radio", { name: /^Lilac/ }).click();
   for (let i = 0; i < 31; i++) await alt.click();
+  await expect(page.getByRole("radio", { name: /^Granite/ })).toContainText("15 slips");
+  await expect(page.getByRole("radio", { name: /^Lilac/ })).toContainText("31 slips");
   await expect(page.getByTestId("total-meals")).toHaveText("46");
   await expect(page.getByTestId("count-main")).toHaveText("15");
   await expect(page.getByTestId("count-alt")).toHaveText("31");
@@ -36,18 +40,23 @@ test("first-release checklist", async ({ page }, testInfo) => {
   await expect(page.getByTestId("count-alt")).toHaveText("30");
 
   // 7 (part). Additional items never change the meal total
-  const pears = page.getByRole("button", { name: /^Add one Pears/ });
-  for (let i = 0; i < 3; i++) await pears.click();
+  await page.getByRole("button", { name: "+ No biscuit – Chicken Pot Pie" }).click();
+  const noBiscuit = page.getByRole("button", { name: /^Add one No biscuit/ });
+  await noBiscuit.click();
+  await noBiscuit.click();
   await expect(page.getByTestId("total-meals")).toHaveText("45");
-  await expect(pears).toContainText("3");
+  await expect(noBiscuit).toContainText("3");
 
   // 6. Fictional special request with a room identifier
   await page.getByRole("button", { name: "+ Request" }).click();
-  await page.getByLabel("Room").fill("Demo 104");
+  await page.getByRole("textbox", { name: "Room" }).fill("Demo 104");
+  await page.getByRole("radio", { name: "Right side" }).click();
   await page.getByLabel("Requested item").fill("Grilled cheese");
   await page.getByRole("button", { name: "Add request" }).click();
-  await expect(page.getByText("Grilled cheese — Demo 104")).toBeVisible();
+  await expect(page.getByText("Grilled cheese — Demo 104R")).toBeVisible();
   await expect(page.getByText("Not yet checked")).toBeVisible();
+  await page.getByRole("button", { name: "✓ Diet checked" }).click(); // one tap, no sign-off
+  await expect(page.getByText("Diet checked", { exact: true })).toBeVisible();
   await expect(page.getByTestId("total-meals")).toHaveText("45"); // requests are separate
 
   await page.screenshot({ path: testInfo.outputPath("count-screen.png"), fullPage: true });
@@ -56,7 +65,9 @@ test("first-release checklist", async ({ page }, testInfo) => {
   await page.getByRole("button", { name: "Review & finish" }).click();
   const dialog = page.getByRole("dialog", { name: "Review count" });
   await expect(dialog.getByRole("row", { name: /Total resident meals 45/ })).toBeVisible();
-  await expect(dialog.getByRole("row", { name: /\+ Pears 3/ })).toBeVisible();
+  await expect(dialog.getByRole("row", { name: /\+ No biscuit – Chicken Pot Pie 3/ })).toBeVisible();
+  await expect(dialog.getByRole("row", { name: /^Lilac 30$/ })).toBeVisible();
+  await dialog.getByRole("checkbox").check(); // acknowledge "No slips counted for Birch"
   await expect(dialog.getByRole("row", { name: /Special requests \(separate\) 1/ })).toBeVisible();
   await dialog.getByRole("button", { name: "Mark count complete" }).click();
   await expect(page.getByText("Count complete")).toBeVisible();
@@ -93,7 +104,7 @@ test("first-release checklist", async ({ page }, testInfo) => {
   await page.goto(COUNTS);
   await page.reload();
   await expect(page.getByTestId("total-meals")).toHaveText("45");
-  await expect(page.getByText("Grilled cheese — Demo 104")).toBeVisible();
+  await expect(page.getByText("Grilled cheese — Demo 104R")).toBeVisible();
 
   // 12. Export and restore demo data
   await page.goto("/stann/reports");

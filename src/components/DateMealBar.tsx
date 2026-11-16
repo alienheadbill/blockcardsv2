@@ -11,14 +11,14 @@ export function defaultMeal(now = new Date()): MealService {
 }
 
 /** Selected date & meal live in the URL (no resident data), so back/forward and reloads keep your place. */
-export function useDateMeal() {
+export function useDateMeal(preferred: MealService | "auto" = "auto") {
   const params = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
   const rawDate = params.get("date") ?? "";
   const rawMeal = params.get("meal") ?? "";
   const date: ISODate = isISODate(rawDate) ? rawDate : localToday();
-  const meal: MealService = (MEAL_SERVICES as readonly string[]).includes(rawMeal) ? (rawMeal as MealService) : defaultMeal();
+  const meal: MealService = (MEAL_SERVICES as readonly string[]).includes(rawMeal) ? (rawMeal as MealService) : preferred === "auto" ? defaultMeal() : preferred;
   const set = useCallback(
     (next: { date?: ISODate; meal?: MealService }) => {
       const q = new URLSearchParams(params.toString());

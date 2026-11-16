@@ -33,14 +33,21 @@ describe("menu transcription", () => {
     ]);
   });
 
-  it("flags uncertain entries for review", () => {
-    const flagged = flaggedItems(FALL_WINTER, {});
-    expect(flagged.length).toBeGreaterThan(5);
-    expect(flagged.some((f) => f.week === 3 && f.item.text.startsWith("Seafood Salad"))).toBe(true);
-    // a reviewed correction clears the flag
-    const target = flagged[0]!.item;
-    const after = flaggedItems(FALL_WINTER, { [target.id]: { text: target.text, kind: target.kind, reviewed: true } });
-    expect(after.length).toBe(flagged.length - 1);
+  it("applies the cook's answers: first entrée is main, fish sticks alt, ice cream sandwich dessert", () => {
+    const w3 = FALL_WINTER.weeks[2]!;
+    const satDinner = w3.days[6]!.dinner;
+    expect(satDinner.filter((i) => i.kind === "main").map((i) => i.text)).toEqual(["Seafood Salad on a Roll, Coleslaw"]);
+    expect(satDinner.find((i) => i.text.startsWith("Mac"))!.kind).toBe("alt");
+    expect(w3.days[1]!.dinner.find((i) => i.text.startsWith("Fish Sticks"))!.kind).toBe("alt");
+    expect(w3.days[3]!.dinner.find((i) => i.text === "Ice Cream Sandwich")!.kind).toBe("dessert");
+    expect(flaggedItems(FALL_WINTER, {})).toEqual([]);
+  });
+
+  it("a reviewed correction clears a flag", () => {
+    const item = { ...FALL_WINTER.weeks[0]!.days[0]!.dinner[0]!, flag: "x" };
+    const season = { ...FALL_WINTER, weeks: [{ ...FALL_WINTER.weeks[0]!, days: [{ ...FALL_WINTER.weeks[0]!.days[0]!, dinner: [item] }] }] };
+    expect(flaggedItems(season, {})).toHaveLength(1);
+    expect(flaggedItems(season, { [item.id]: { text: item.text, kind: item.kind, reviewed: true } })).toHaveLength(0);
   });
 });
 

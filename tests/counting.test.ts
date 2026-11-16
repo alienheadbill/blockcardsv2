@@ -122,6 +122,44 @@ describe("counting", () => {
     expect(() => C.tapItem(fresh(), "nope")).toThrow();
   });
 
+  it("tags slips with the unit stack and subtotals each unit", () => {
+    let s = C.createSession({ date: "2026-11-16", meal: "dinner", menuItems: menu, units: ["Granite", "Lilac", "Birch"] });
+    expect(s.activeUnit).toBe("Granite");
+    s = tap(s, MAIN, 3);
+    s = C.setActiveUnit(s, "Lilac");
+    s = tap(s, ALT, 4);
+    s = C.setActiveUnit(s, "Birch");
+    s = tap(s, MAIN, 2);
+    const sum = C.summarize(s);
+    expect(sum.totalMeals).toBe(9);
+    expect(sum.byUnit.Granite).toEqual({ total: 3, byChoice: { [MAIN]: 3 } });
+    expect(sum.byUnit.Lilac!.total).toBe(4);
+    expect(sum.byUnit.Birch!.total).toBe(2);
+    expect(() => C.setActiveUnit(s, "Oak")).toThrow();
+  });
+
+  it("warns (without blocking) when a unit has no slips", () => {
+    let s = C.createSession({ date: "2026-11-16", meal: "dinner", menuItems: menu, units: ["Granite", "Lilac"] });
+    s = tap(s, MAIN, 2);
+    const issue = C.reviewIssues(s).find((i) => i.id === "units");
+    expect(issue).toMatchObject({ blocking: false });
+    expect(issue!.message).toMatch(/Lilac/);
+    expect(C.complete(s, ["units"]).status).toBe("complete");
+  });
+
+  it("suggests no-bun / no-biscuit modifications that don't change the meal total", () => {
+    const wed = FALL_WINTER.weeks[0]!.days[3]!.dinner; // Sloppy Joe on a bun / Chili Mac
+    let s = C.createSession({ date: "2026-11-11", meal: "dinner", menuItems: wed });
+    expect(C.modificationSuggestions(s)).toContain("No bun – Sloppy Joe on a Bun");
+    const potPie = C.createSession({ date: "2026-11-16", meal: "dinner", menuItems: menu });
+    expect(C.modificationSuggestions(potPie)).toContain("No biscuit – Chicken Pot Pie");
+    s = tap(s, s.options[0]!.key, 5);
+    s = C.addExtra(s, "No bun – Sloppy Joe on a Bun");
+    s = C.tapItem(s, s.extras[s.extras.length - 1]!.key);
+    expect(C.summarize(s).totalMeals).toBe(5);
+    expect(C.modificationSuggestions(s)).not.toContain("No bun – Sloppy Joe on a Bun");
+  });
+
   it("groups tallies in fives", () => {
     expect(C.tallyGroups(0)).toEqual([]);
     expect(C.tallyGroups(12)).toEqual([5, 5, 2]);

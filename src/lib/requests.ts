@@ -2,8 +2,9 @@
  * Special resident requests — the "Request" box under the tallies in the notebook.
  *
  * Safety rules enforced here:
- *  - A request is never "verified" by the app. A person must record that they
- *    checked it against the facility's current authorized diet order.
+ *  - A request is never "verified" by the app. A person (cook, nurse or dietary
+ *    aide) taps "Diet checked" after looking at the resident's current diet order.
+ *    No initials or separate sign-off are required.
  *  - Room number / name is only an identifier. It is never used to look up or
  *    infer a diet, texture or allergy.
  *  - A request flagged for review cannot be moved to Ready/Served.
@@ -26,7 +27,7 @@ export const VERIFICATION_STATUSES = ["unverified", "verified", "flagged"] as co
 export type VerificationStatus = (typeof VERIFICATION_STATUSES)[number];
 export const VERIFICATION_LABELS: Record<VerificationStatus, string> = {
   unverified: "Not yet checked",
-  verified: "Checked against diet order",
+  verified: "Diet checked",
   flagged: "Flagged for staff review",
 };
 
@@ -34,8 +35,12 @@ export interface SpecialRequest {
   id: string;
   date: ISODate;
   meal: MealService;
-  /** Room number or name, per the workspace setting. Demo data uses fictional rooms only. */
+  /** Room number + side (e.g. "207R") or name, per the workspace setting. Demo data uses fictional rooms only. */
   identifier: string;
+  /** Unit the resident is on (Granite, Lilac, Birch…), if known. */
+  unit?: string;
+  /** Set when the request came from a daily regular. */
+  standingId?: string;
   item: string;
   quantity: number;
   notes: string;
@@ -57,6 +62,8 @@ export function createRequest(input: {
   item: string;
   quantity?: number;
   notes?: string;
+  unit?: string;
+  standingId?: string;
   countSessionId?: string;
 }): SpecialRequest {
   const identifier = input.identifier.trim();
@@ -77,18 +84,86 @@ export function createRequest(input: {
     verification: "unverified",
     status: "not_started",
     ...(input.countSessionId ? { countSessionId: input.countSessionId } : {}),
+    ...(input.unit ? { unit: input.unit } : {}),
+    ...(input.standingId ? { standingId: input.standingId } : {}),
     createdAt: now,
     updatedAt: now,
   };
 }
 
-/** Record that a person checked the request against the current authorized diet order. */
-export function markVerified(req: SpecialRequest, initials: string): SpecialRequest {
-  const who = initials.trim();
-  if (!who) throw new Error("Enter your initials to record who checked the diet order");
+/** Record that someone checked the request against the resident's current diet order. */
+export function markVerified(req: SpecialRequest, who = ""): SpecialRequest {
   const now = nowISO();
-  const { flagReason: _drop, ...rest } = req;
-  return { ...rest, verification: "verified", verifiedBy: who, verifiedAt: now, updatedAt: now };
+  const { flagReason: _drop, verifiedBy: _old, ...rest } = req;
+  return { ...rest, verification: "verified", ...(who.trim() ? { verifiedBy: who.trim() } : {}), verifiedAt: now, updatedAt: now };
+}
+
+/** Undo an accidental "Diet checked" tap. */
+export function unmarkVerified(req: SpecialRequest): SpecialRequest {
+  const { verifiedBy: _a, verifiedAt: _b, ...rest } = req;
+  return { ...rest, verification: "unverified", updatedAt: nowISO() };
+}
+
+/** Room number with bed side: "207R", "103L". */
+export function formatRoom(number: string, side: "L" | "R" | ""): string {
+  const n = number.trim().replace(/\s+/g, " ");
+  if (!n) return "";
+  return `${n}${side}`;
+}
+
+const ROOM_RE = /^(.*?)(\d+)\s*([LR])?$/i;
+export function parseRoom(identifier: string): { number: string; side: "L" | "R" | "" } {
+  const m = identifier.trim().match(ROOM_RE);
+  if (!m) return { number: identifier.trim(), side: "" };
+  return { number: `${m[1] ?? ""}${m[2]}`, side: ((m[3] ?? "").toUpperCase() as "L" | "R" | "") };
+}
+
+/** A daily regular — someone who gets the same request every day for a meal. */
+export interface StandingRequest {
+  id: string;
+  meal: MealService;
+  identifier: string;
+  unit?: string;
+  item: string;
+  quantity: number;
+  notes: string;
+  active: boolean;
+  createdAt: string;
+}
+
+export function createStanding(input: { meal: MealService; identifier: string; item: string; quantity?: number; notes?: string; unit?: string }): StandingRequest {
+  const probe = createRequest({ ...input, date: "2000-01-01" }); // reuse validation
+  return {
+    id: newId("std"),
+    meal: input.meal,
+    identifier: probe.identifier,
+    ...(probe.unit ? { unit: probe.unit } : {}),
+    item: probe.item,
+    quantity: probe.quantity,
+    notes: probe.notes,
+    active: true,
+    createdAt: nowISO(),
+  };
+}
+
+/** Daily regulars not yet added for this date & meal. */
+export function pendingStanding(standing: StandingRequest[], requests: SpecialRequest[], date: ISODate, meal: MealService): StandingRequest[] {
+  const used = new Set(requests.filter((r) => r.date === date && r.meal === meal && r.standingId).map((r) => r.standingId));
+  return standing.filter((s) => s.active && s.meal === meal && !used.has(s.id));
+}
+
+export function fromStanding(s: StandingRequest, date: ISODate, countSessionId?: string): SpecialRequest {
+  return createRequest({
+    date,
+    meal: s.meal,
+    identifier: s.identifier,
+    item: s.item,
+    quantity: s.quantity,
+    notes: s.notes,
+    standingId: s.id,
+    ...(s.unit ? { unit: s.unit } : {}),
+    ...(countSessionId ? { countSessionId } : {}),
+  });
 }
 
 export function flagForReview(req: SpecialRequest, reason: string): SpecialRequest {

@@ -10,10 +10,10 @@ import type { MenuCorrection, MenuHistoryEntry, MenuOverride, RotationConfig } f
 import type { MealService } from "../menu/types";
 import type { PrepTask, PrepTemplate } from "../prep";
 import { makeRecipe, starterRecipes, type Recipe } from "../recipes/recipes";
-import type { SpecialRequest } from "../requests";
+import type { SpecialRequest, StandingRequest } from "../requests";
 import type { WorkspaceId } from "../workspaces";
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export interface AuditEvent {
   id: string;
@@ -56,6 +56,12 @@ export interface StAnnData extends Common {
     servingTimes: Record<MealService, string>;
     defaultCountMode: "quick" | "detailed";
     showTallyMarks: boolean;
+    /** Unit slip stacks, counted separately (Granite, Lilac, Birch). Empty = one stack. */
+    units: string[];
+    /** Meal the Counts screen opens on. "auto" picks by time of day. */
+    defaultMeal: MealService | "auto";
+    /** Also show the menu's sides/desserts/fruit as counters (off: only entrées + modifications). */
+    countMenuSides: boolean;
   };
   rotation: RotationConfig;
   corrections: Record<string, MenuCorrection>;
@@ -63,6 +69,7 @@ export interface StAnnData extends Common {
   overrides: Record<string, MenuOverride>;
   counts: Record<string, CountSession>;
   requests: SpecialRequest[];
+  standingRequests: StandingRequest[];
 }
 
 export interface TruckMenuItem {
@@ -101,6 +108,21 @@ export interface AppState {
   activeWorkspace: WorkspaceId | null;
   workspaces: { stann: StAnnData; truck: TruckData; home: HomeData };
 }
+
+export const DEFAULT_UNITS = ["Granite", "Lilac", "Birch"];
+
+export const DEFAULT_STANN_SETTINGS: StAnnData["settings"] = {
+  identifierType: "room",
+  servingTimes: { breakfast: "07:30", lunch: "12:00", dinner: "16:45" },
+  defaultCountMode: "quick",
+  showTallyMarks: true,
+  units: DEFAULT_UNITS,
+  defaultMeal: "dinner",
+  countMenuSides: false,
+};
+
+export const CONFIRMED_ANCHOR_NOTE =
+  "Confirmed by the cook on 11/16/2026: Monday 11/16 is Week 2 (Vegetable Frittata / Chicken Pot Pie dinner).";
 
 export type WorkspaceData<W extends WorkspaceId> = AppState["workspaces"][W];
 
@@ -165,24 +187,14 @@ export function initialState(): AppState {
 
   const stann: StAnnData = {
     ...common(starterRecipes()),
-    settings: {
-      identifierType: "room",
-      servingTimes: { breakfast: "07:30", lunch: "12:00", dinner: "17:00" },
-      defaultCountMode: "quick",
-      showTallyMarks: true,
-    },
-    rotation: {
-      seasonId: "fall-winter",
-      week1Start: "2026-11-08",
-      confirmed: false,
-      note:
-        "Suggested from the photographed supper slip dated Monday the 16th (Vegetable Frittata / Chicken Pot Pie, which is Week 2 Monday dinner). Confirm against the facility's posted schedule before relying on it.",
-    },
+    settings: { ...DEFAULT_STANN_SETTINGS, units: [...DEFAULT_UNITS] },
+    rotation: { seasonId: "fall-winter", week1Start: "2026-11-08", confirmed: true, note: CONFIRMED_ANCHOR_NOTE },
     corrections: {},
     menuHistory: [],
     overrides: {},
     counts: {},
     requests: [],
+    standingRequests: [],
     templates: [
       {
         id: newId("tpl"),
@@ -225,4 +237,44 @@ export function updateWorkspace<W extends WorkspaceId>(
   let next = fn(state.workspaces[ws]);
   if (log) next = { ...next, audit: [audit(log.action, log.detail), ...next.audit].slice(0, AUDIT_LIMIT) };
   return { ...state, workspaces: { ...state.workspaces, [ws]: next } };
+}
+
+/**
+ * Bring saved data from older versions up to date. Never drops data:
+ * only fills in fields that newer versions added.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function migrate(raw: any): any {
+  if (!raw || typeof raw !== "object" || typeof raw.schemaVersion !== "number") return raw;
+  if (raw.schemaVersion === 1) {
+    const st = raw.workspaces?.stann;
+    if (st) {
+      const old = st.settings ?? {};
+      st.settings = {
+        ...DEFAULT_STANN_SETTINGS,
+        ...old,
+        // 5:00 was a placeholder; the kitchen serves dinner at 4:45.
+        servingTimes: { ...DEFAULT_STANN_SETTINGS.servingTimes, ...(old.servingTimes ?? {}), ...(old.servingTimes?.dinner === "17:00" ? { dinner: "16:45" } : {}) },
+        units: Array.isArray(old.units) ? old.units : [...DEFAULT_UNITS],
+      };
+      st.standingRequests ??= [];
+      if (st.rotation && st.rotation.week1Start === "2026-11-08" && !st.rotation.confirmed) {
+        st.rotation = { ...st.rotation, confirmed: true, note: CONFIRMED_ANCHOR_NOTE };
+      }
+      for (const c of Object.values(st.counts ?? {}) as { units?: string[]; activeUnit?: string | null }[]) {
+        c.units ??= [];
+        c.activeUnit ??= null;
+      }
+    }
+    raw.schemaVersion = 2;
+  }
+  return raw;
+}
+
+/** Same as `migrate`, for a single St. Ann workspace object from a workspace backup. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function migrateWorkspace(ws: string, data: any, fromVersion: number): any {
+  if (fromVersion >= SCHEMA_VERSION || ws !== "stann") return data;
+  const wrapped = migrate({ schemaVersion: fromVersion, workspaces: { stann: data } });
+  return wrapped.workspaces.stann;
 }

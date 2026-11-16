@@ -38,7 +38,7 @@ interface BaseEvent {
   at: string;
 }
 export type CountEvent =
-  | (BaseEvent & { type: "slip"; choice: string; note?: string })
+  | (BaseEvent & { type: "slip"; choice: string; unit?: string; note?: string })
   | (BaseEvent & { type: "item"; itemKey: string; slipId?: string })
   | (BaseEvent & { type: "undo"; targetId: string })
   | (BaseEvent & { type: "resolve"; slipId: string; choice: string })
@@ -62,6 +62,10 @@ export interface CountSession {
   extras: ExtraItem[];
   /** Number of physical slips in the stack, if the cook knows it. */
   expectedSlips: number | null;
+  /** Units whose slip stacks are counted separately (e.g. Granite, Lilac, Birch). */
+  units: string[];
+  /** The unit stack currently being counted; new slips are tagged with it. */
+  activeUnit: string | null;
   events: CountEvent[];
   status: CountStatus;
   createdAt: string;
@@ -86,6 +90,7 @@ export function createSession(args: {
   menuItems: MenuItem[];
   mode?: CountMode;
   expectedSlips?: number | null;
+  units?: string[];
 }): CountSession {
   const { options, extras } = optionsFromMenu(args.menuItems);
   return {
@@ -96,6 +101,8 @@ export function createSession(args: {
     options,
     extras,
     expectedSlips: args.expectedSlips ?? null,
+    units: args.units ?? [],
+    activeUnit: args.units?.[0] ?? null,
     events: [],
     status: "counting",
     createdAt: nowISO(),
@@ -122,7 +129,8 @@ function assertChoice(session: CountSession, choice: string) {
 export function tapSlip(session: CountSession, choice: string, note?: string): CountSession {
   assertOpen(session);
   assertChoice(session, choice);
-  return append(session, note ? { type: "slip", choice, note } : { type: "slip", choice });
+  const unit = session.activeUnit ?? undefined;
+  return append(session, { type: "slip", choice, ...(unit ? { unit } : {}), ...(note ? { note } : {}) });
 }
 
 /** Count an add-on item. Never changes the resident meal total. */
@@ -130,6 +138,35 @@ export function tapItem(session: CountSession, itemKey: string, slipId?: string)
   assertOpen(session);
   if (!session.extras.some((e) => e.key === itemKey)) throw new Error(`Unknown item: ${itemKey}`);
   return append(session, slipId ? { type: "item", itemKey, slipId } : { type: "item", itemKey });
+}
+
+/** Switch to another unit's slip stack. */
+export function setActiveUnit(session: CountSession, unit: string | null): CountSession {
+  if (unit !== null && !(session.units ?? []).includes(unit)) throw new Error(`Unknown unit: ${unit}`);
+  return { ...session, activeUnit: unit };
+}
+
+/**
+ * One-tap modification counters suggested from the entrées, e.g. "No bun" for a
+ * sandwich or "No biscuit" for pot pie. These are tracked like add-on items, so
+ * they never change the meal total.
+ */
+export function modificationSuggestions(session: CountSession): string[] {
+  const out: string[] = [];
+  const rules: [RegExp, string][] = [
+    [/\b(bun|sandwich|burger|sub|roll|wrap|hot dog|sloppy joe)\b/i, "No bun"],
+    [/\bbiscuit\b/i, "No biscuit"],
+    [/\b(garlic bread|toast|brown bread)\b/i, "No bread"],
+    [/\b(gravy)\b/i, "No gravy"],
+    [/\b(cheese)\b/i, "No cheese"],
+  ];
+  for (const o of session.options) {
+    if (o.role !== "main" && o.role !== "alt") continue;
+    const short = o.label.split(/[,/]| w\/ | with /i)[0]!.trim();
+    for (const [re, mod] of rules) if (re.test(o.label)) out.push(`${mod} – ${short}`);
+  }
+  const existing = new Set(session.extras.map((e) => e.label.toLowerCase()));
+  return [...new Set(out)].filter((l) => !existing.has(l.toLowerCase()));
 }
 
 export function addExtra(session: CountSession, label: string, kind: ExtraItem["kind"] = "other"): CountSession {
@@ -202,6 +239,8 @@ export interface CountSummary {
   unresolved: number;
   unresolvedSlipIds: string[];
   corrections: number;
+  /** Slips per unit stack ("" = no unit chosen). Corrections are not attributed to a unit. */
+  byUnit: Record<string, { total: number; byChoice: Record<string, number> }>;
   /** expected − counted (null when no expected number was entered). */
   discrepancy: number | null;
   lastSlipId: string | null;
@@ -245,9 +284,15 @@ export function summarize(session: CountSession): CountSummary {
     }
   }
   const unresolvedSlipIds: string[] = [];
+  const slipUnit = new Map(session.events.flatMap((e) => (e.type === "slip" ? [[e.id, e.unit ?? ""] as const] : [])));
+  const byUnit: CountSummary["byUnit"] = Object.fromEntries((session.units ?? []).map((u) => [u, { total: 0, byChoice: {} }]));
   for (const [id, choice] of slipChoice) {
     byChoice[choice] = (byChoice[choice] ?? 0) + 1;
     if (choice === UNRESOLVED_CHOICE) unresolvedSlipIds.push(id);
+    const u = slipUnit.get(id) ?? "";
+    const bucket = (byUnit[u] ??= { total: 0, byChoice: {} });
+    bucket.total++;
+    bucket.byChoice[choice] = (bucket.byChoice[choice] ?? 0) + 1;
   }
   const totalMeals = slipsProcessed + correctionMeals;
   return {
@@ -258,13 +303,14 @@ export function summarize(session: CountSession): CountSummary {
     unresolved: byChoice[UNRESOLVED_CHOICE] ?? 0,
     unresolvedSlipIds,
     corrections,
+    byUnit,
     discrepancy: session.expectedSlips == null ? null : session.expectedSlips - totalMeals,
     lastSlipId,
   };
 }
 
 export interface ReviewIssue {
-  id: "unresolved" | "discrepancy" | "empty" | "corrections";
+  id: "unresolved" | "discrepancy" | "empty" | "corrections" | "units";
   message: string;
   /** Blocking issues cannot be acknowledged away. */
   blocking: boolean;
@@ -289,6 +335,9 @@ export function reviewIssues(session: CountSession): ReviewIssue[] {
           : `Counted ${s.totalMeals} but the stack had ${session.expectedSlips} — ${-s.discrepancy} too many.`,
       blocking: false,
     });
+  const emptyUnits = (session.units ?? []).filter((u) => (s.byUnit[u]?.total ?? 0) === 0);
+  if (s.totalMeals > 0 && emptyUnits.length)
+    issues.push({ id: "units", message: `No slips counted for ${emptyUnits.join(", ")}.`, blocking: false });
   if (s.corrections > 0)
     issues.push({ id: "corrections", message: `${s.corrections} manual correction(s) were made — check the audit log.`, blocking: false });
   return issues;

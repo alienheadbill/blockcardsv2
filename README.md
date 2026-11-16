@@ -44,24 +44,27 @@ npm run build && npm run test:e2e   # Playwright: walks the release checklist on
 
 ## Counting a stack of slips
 
-1. **Counts** → pick the date and meal. Check the menu, optionally enter how many slips are in the stack, tap **Start counting**.
-2. One tap on a meal panel = one slip. Panels show a running number and tally marks in fives.
-3. **Unclear slip** for anything you can't read — you'll pick the meal before finishing.
-4. **Additional items** (pears, cookie, soup…) are counted separately and never change the meal total.
-   *Detailed* mode ties them to the slip you just counted.
-5. **Undo** reverses the last tap. **Manual correction** needs a reason. Everything is in the tap log.
-6. **Review & finish** shows totals and any problems (stack mismatch, unclear slips) and locks the count.
+1. **Counts** opens on Dinner. Check the menu and tap **Start counting**.
+2. Pick the unit stack you're on: **Granite**, **Lilac** or **Birch**. Each tap is tagged with that unit.
+3. One tap on a meal panel = one slip. Only the two entrées are tallied, with a running number and tally marks in fives.
+4. **Modifications**: tap a suggestion like "+ No bun – Sloppy Joe" or "+ No biscuit – Chicken Pot Pie"
+   (or type your own) to count it. They never change the meal total.
+5. **Unclear slip** for anything you can't read — you'll pick the meal before finishing.
+6. **Undo** reverses the last tap. **Manual correction** needs a reason. Everything is in the tap log.
+7. **Review & finish** shows totals per entrée and per unit, warns if a unit has no slips, and locks the count.
+   If you happen to know the stack size you can enter it under Count tools, but you don't have to.
 
-Special requests go under the count, like the notebook. Each starts "Not yet checked" — record your
-initials once you've checked it against the resident's current diet order, or flag it for staff review.
+Special requests go under the count, like the notebook. Enter the room number and tap **L** or **R** for the
+side of the room, and optionally the unit. Tap **✓ Diet checked** once you (or the nurse / dietary aide)
+have looked at the diet order — no initials or sign-off. Tick **Repeat every day** for someone who gets the
+same thing daily; the app then offers "Add for today" each day until you stop it.
 
 ## First-time setup
 
-- **Menu → Rotation start date**: set the Sunday the facility treats as Week 1 and tick "confirmed".
-  The demo uses Sun Nov 8, 2026 (worked out from the photographed Monday-16th slip) and marks it unconfirmed.
-- **Menu → Transcription review**: 11 lines from the photos need a look against the posted sheets
-  ([details](docs/MENU_TRANSCRIPTION.md)).
-- **Reports → Kitchen settings**: serving times, default counting mode, tally marks.
+- Rotation is set and confirmed: Week 1 started Sunday, Nov 8, 2026 (Mon Nov 16 = Week 2).
+- Menu flags from the photos are resolved ([details](docs/MENU_TRANSCRIPTION.md)).
+- **Reports → Kitchen settings**: serving times (dinner 4:45), the meal Counts opens on, unit names,
+  counting mode, tally marks, and whether to also count menu sides/desserts/fruit (off by default).
 - **Reports → Backup & restore**: download a JSON backup and restore it later or on another device.
 
 ## Docs

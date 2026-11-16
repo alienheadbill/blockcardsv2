@@ -4,7 +4,7 @@
  */
 import { z } from "zod";
 import { WORKSPACE_IDS, type WorkspaceId } from "../workspaces";
-import { SCHEMA_VERSION, type AppState } from "./model";
+import { migrate, migrateWorkspace, SCHEMA_VERSION, type AppState } from "./model";
 
 const iso = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const meal = z.enum(["breakfast", "lunch", "dinner"]);
@@ -27,6 +27,8 @@ const countSession = z.looseObject({
   expectedSlips: z.number().int().nonnegative().nullable(),
   events: arr(countEvent),
   status: z.enum(["counting", "complete"]),
+  units: arr(z.string()),
+  activeUnit: z.string().nullable(),
 });
 const prepTask = z.looseObject({ id: z.string(), date: iso, title: z.string(), done: z.boolean() });
 const recipe = z.looseObject({
@@ -56,6 +58,7 @@ export const workspaceSchemas = {
     menuHistory: arr(z.looseObject({ id: z.string(), itemId: z.string() })),
     overrides: z.record(z.string(), z.looseObject({ items: arr(menuItem), reason: z.string() })),
     counts: z.record(z.string(), countSession),
+    standingRequests: arr(z.looseObject({ id: z.string(), meal, identifier: z.string(), item: z.string(), active: z.boolean() })),
     requests: arr(
       z.looseObject({
         id: z.string(),
@@ -133,10 +136,10 @@ export function restore(current: AppState, raw: string, target?: WorkspaceId): R
     .safeParse(parsed);
   if (!header.success) return { ok: false, error: "This is not a Kitchen Blockcards backup file." };
   const file = header.data;
-  if (file.schemaVersion !== SCHEMA_VERSION) return { ok: false, error: `Backup version ${file.schemaVersion} is not supported.` };
+  if (file.schemaVersion < 1 || file.schemaVersion > SCHEMA_VERSION) return { ok: false, error: `Backup version ${file.schemaVersion} is not supported.` };
 
   if (file.kind === "full") {
-    const res = appStateSchema.safeParse(file.data);
+    const res = appStateSchema.safeParse(migrate(file.data));
     if (!res.success) return { ok: false, error: `Backup failed validation — ${formatIssues(res.error)}` };
     return { ok: true, state: res.data as unknown as AppState, summary: "Restored all workspaces." };
   }
@@ -145,7 +148,7 @@ export function restore(current: AppState, raw: string, target?: WorkspaceId): R
   if (target && target !== ws) {
     return { ok: false, error: `This backup belongs to the ${ws} workspace and can't be restored into ${target}.` };
   }
-  const res = workspaceSchemas[ws].safeParse(file.data);
+  const res = workspaceSchemas[ws].safeParse(migrateWorkspace(ws, file.data, file.schemaVersion));
   if (!res.success) return { ok: false, error: `Backup failed validation — ${formatIssues(res.error)}` };
   return {
     ok: true,

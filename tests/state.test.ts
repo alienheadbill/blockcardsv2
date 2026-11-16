@@ -1,15 +1,18 @@
 import { describe, expect, it } from "vitest";
 import * as C from "@/lib/counting";
 import { exportFull, exportWorkspace, restore } from "@/lib/state/backup";
-import { initialState } from "@/lib/state/model";
+import { initialState, migrate } from "@/lib/state/model";
+import { appStateSchema } from "@/lib/state/backup";
 import * as ops from "@/lib/state/ops";
 
 const DATE = "2026-11-16";
 
 describe("app state", () => {
-  it("starts with an unconfirmed (suggested) rotation anchor", () => {
+  it("starts with the cook-confirmed rotation anchor and dinner at 4:45", () => {
     const s = initialState();
-    expect(s.workspaces.stann.rotation.confirmed).toBe(false);
+    expect(s.workspaces.stann.rotation.confirmed).toBe(true);
+    expect(s.workspaces.stann.settings.servingTimes.dinner).toBe("16:45");
+    expect(s.workspaces.stann.settings.units).toEqual(["Granite", "Lilac", "Birch"]);
     expect(ops.mealFor(s, DATE, "dinner").position).toMatchObject({ week: 2, dayName: "Monday" });
   });
 
@@ -88,6 +91,33 @@ describe("app state", () => {
     const s = ops.correctMenuItem(s0, item, { text: "Vegetable Frittata, Hash Brown Patty", kind: "main", reviewed: true }, "spelling");
     expect(ops.mealFor(s, DATE, "dinner").items[0]!.text).toBe("Vegetable Frittata, Hash Brown Patty");
     expect(s.workspaces.stann.menuHistory[0]).toMatchObject({ before: { text: item.text }, note: "spelling" });
+  });
+
+  it("migrates data saved by the first version without losing it", () => {
+    const v1 = JSON.parse(JSON.stringify(ops.startSession(initialState(), DATE, "dinner")));
+    v1.schemaVersion = 1;
+    v1.workspaces.stann.rotation.confirmed = false;
+    v1.workspaces.stann.settings = { identifierType: "room", servingTimes: { breakfast: "07:30", lunch: "12:00", dinner: "17:00" }, defaultCountMode: "quick", showTallyMarks: true };
+    delete v1.workspaces.stann.standingRequests;
+    const session = Object.values(v1.workspaces.stann.counts)[0] as Record<string, unknown>;
+    delete session.units;
+    delete session.activeUnit;
+    const parsed = appStateSchema.safeParse(migrate(v1));
+    expect(parsed.success).toBe(true);
+    const st = (parsed.data as unknown as ReturnType<typeof initialState>).workspaces.stann;
+    expect(st.rotation.confirmed).toBe(true);
+    expect(st.settings.servingTimes.dinner).toBe("16:45");
+    expect(st.standingRequests).toEqual([]);
+    expect(Object.keys(st.counts)).toHaveLength(1);
+  });
+
+  it("adds daily regulars for a service only once", () => {
+    let s = ops.addStandingRequest(initialState(), { meal: "dinner", identifier: "Demo 110L", item: "Smoothie" });
+    s = ops.addStandingForService(s, DATE, "dinner");
+    s = ops.addStandingForService(s, DATE, "dinner");
+    expect(s.workspaces.stann.requests).toHaveLength(1);
+    s = ops.setStandingActive(s, s.workspaces.stann.standingRequests[0]!.id, false);
+    expect(ops.addStandingForService(s, "2026-11-17", "dinner").workspaces.stann.requests).toHaveLength(1);
   });
 
   it("builds a restock list from par levels", () => {

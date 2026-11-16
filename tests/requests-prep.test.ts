@@ -17,10 +17,11 @@ describe("special requests", () => {
     expect(r.verification).toBe("unverified");
     expect(r.status).toBe("not_started");
     expect(R.needsAttention(r)).toBe(true);
-    expect(() => R.markVerified(r, "")).toThrow(/initials/);
-    const v = R.markVerified(r, "BR");
+    // one tap, no initials or sign-off needed
+    const v = R.markVerified(r);
     expect(v.verification).toBe("verified");
-    expect(v.verifiedBy).toBe("BR");
+    expect(v.verifiedBy).toBeUndefined();
+    expect(R.unmarkVerified(v).verification).toBe("unverified");
   });
 
   it("flagged requests cannot be served", () => {
@@ -40,6 +41,26 @@ describe("special requests", () => {
     expect(groups[0]).toMatchObject({ item: "Cheeseburger", totalQuantity: 3 });
     expect(groups[0]!.requests.map((r) => r.identifier)).toEqual(["Demo 204", "Demo 110"]);
     expect(groups[1]).toMatchObject({ item: "Veg salad", totalQuantity: 1 });
+  });
+});
+
+describe("rooms & daily regulars", () => {
+  it("formats and parses room + side", () => {
+    expect(R.formatRoom("207", "R")).toBe("207R");
+    expect(R.formatRoom(" Demo 103 ", "L")).toBe("Demo 103L");
+    expect(R.parseRoom("207R")).toEqual({ number: "207", side: "R" });
+    expect(R.parseRoom("Demo 103l")).toEqual({ number: "Demo 103", side: "L" });
+  });
+
+  it("offers daily regulars once per date and meal", () => {
+    const st = R.createStanding({ meal: "dinner", identifier: "Demo 110L", item: "Smoothie", unit: "Birch" });
+    expect(R.pendingStanding([st], [], "2026-11-16", "dinner")).toHaveLength(1);
+    expect(R.pendingStanding([st], [], "2026-11-16", "lunch")).toHaveLength(0);
+    const today = R.fromStanding(st, "2026-11-16");
+    expect(today).toMatchObject({ item: "Smoothie", unit: "Birch", standingId: st.id, verification: "unverified" });
+    expect(R.pendingStanding([st], [today], "2026-11-16", "dinner")).toHaveLength(0);
+    expect(R.pendingStanding([st], [today], "2026-11-17", "dinner")).toHaveLength(1);
+    expect(R.pendingStanding([{ ...st, active: false }], [], "2026-11-17", "dinner")).toHaveLength(0);
   });
 });
 

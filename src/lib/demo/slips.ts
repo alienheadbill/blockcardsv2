@@ -33,6 +33,6 @@ export function demoStack(session: CountSession, size = 41): DemoSlip[] {
     // roughly 60/40 main vs alternate, like the notebook tallies
     const pick = entrees.length === 1 || rand() < 0.6 ? entrees[0]! : entrees[1 + Math.floor(rand() * (entrees.length - 1))]!;
     const extras = session.extras.filter(() => rand() < 0.7).map((x) => ({ key: x.key, label: x.label }));
-    return { n: i + 1, room: `Demo ${100 + Math.floor(rand() * 120)}${rand() < 0.5 ? "A" : "B"}`, choiceKey: pick.key, choiceLabel: pick.label, extras };
+    return { n: i + 1, room: `Demo ${100 + Math.floor(rand() * 120)}${rand() < 0.5 ? "L" : "R"}`, choiceKey: pick.key, choiceLabel: pick.label, extras };
   });
 }

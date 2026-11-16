@@ -1,5 +1,5 @@
 "use client";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import * as C from "@/lib/counting";
 import { addDays, formatShort } from "@/lib/dates";
 import { MEAL_LABELS, MEAL_SERVICES, type MealService } from "@/lib/menu/types";
@@ -119,6 +119,15 @@ function MealProduction({ date, meal }: { date: string; meal: MealService }) {
                     <td className="py-1 text-right font-bold tabular-nums">{sum!.byChoice[o.key]}</td>
                   </tr>
                 ))}
+            {session &&
+              Object.entries(sum!.byUnit)
+                .filter(([, v]) => v.total > 0)
+                .map(([u, v]) => (
+                  <tr key={`u-${u}`} className="border-b border-line text-muted">
+                    <td className="py-1">{u || "No unit"}</td>
+                    <td className="py-1 text-right tabular-nums">{v.total}</td>
+                  </tr>
+                ))}
             {session && (
               <tr className="border-b-2 border-ink font-extrabold">
                 <td className="py-1">Resident meals</td>
@@ -167,6 +176,17 @@ function Settings() {
             </Field>
           ))}
         </div>
+        <Field label="Counts screen opens on">
+          <select className={inputCls} value={settings.defaultMeal ?? "dinner"} onChange={(e) => save({ defaultMeal: e.target.value as MealService | "auto" })}>
+            {MEAL_SERVICES.map((m) => (
+              <option key={m} value={m}>
+                {MEAL_LABELS[m]}
+              </option>
+            ))}
+            <option value="auto">Whichever meal is next (by time)</option>
+          </select>
+        </Field>
+        <UnitsField units={settings.units ?? []} onSave={(units) => save({ units })} />
         <Field label="Default counting mode">
           <select className={inputCls} value={settings.defaultCountMode} onChange={(e) => save({ defaultCountMode: e.target.value as "quick" | "detailed" })}>
             <option value="quick">Quick count — one tap per slip</option>
@@ -177,8 +197,31 @@ function Settings() {
           <input type="checkbox" className="h-6 w-6" checked={settings.showTallyMarks} onChange={(e) => save({ showTallyMarks: e.target.checked })} />
           <span className="font-semibold">Show tally marks on count panels</span>
         </label>
+        <label className="flex items-center gap-3">
+          <input type="checkbox" className="h-6 w-6" checked={settings.countMenuSides ?? false} onChange={(e) => save({ countMenuSides: e.target.checked })} />
+          <span className="font-semibold">Also count menu sides, desserts &amp; fruit (off = entrées + modifications only)</span>
+        </label>
       </div>
     </Card>
   );
 }
 
+
+function UnitsField({ units, onSave }: { units: string[]; onSave: (u: string[]) => boolean }) {
+  const [text, setText] = useState(units.join(", "));
+  const parsed = text
+    .split(",")
+    .map((x) => x.trim())
+    .filter(Boolean);
+  const changed = parsed.join("|") !== units.join("|");
+  return (
+    <Field label="Units (slip stacks)" hint="Comma separated. New counts tally each unit separately. Leave empty for one stack.">
+      <div className="flex gap-2">
+        <input className={inputCls} value={text} onChange={(e) => setText(e.target.value)} placeholder="Granite, Lilac, Birch" />
+        <Button variant="outline" disabled={!changed} onClick={() => onSave([...new Set(parsed)])}>
+          Save
+        </Button>
+      </div>
+    </Field>
+  );
+}

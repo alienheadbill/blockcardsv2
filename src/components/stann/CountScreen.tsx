@@ -22,7 +22,8 @@ const buzz = () => {
 };
 
 export function CountScreen() {
-  const { date, meal, set } = useDateMeal();
+  const preferred = useAppState((s) => s.workspaces.stann.settings.defaultMeal ?? "dinner");
+  const { date, meal, set } = useDateMeal(preferred);
   const state = useAppState((s) => s);
   const resolved = useMemo(() => ops.mealFor(state, date, meal), [state, date, meal]);
   const session = state.workspaces.stann.counts[C.sessionKey(date, meal)];
@@ -33,7 +34,13 @@ export function CountScreen() {
       <DateBar date={date} onChange={(d) => set({ date: d })} subtitle={positionLabel(resolved)} />
       <MealTabs meal={meal} onChange={(m) => set({ meal: m })} />
       {session ? (
-        <ActiveCount session={session} showTally={settings.showTallyMarks} positionText={positionLabel(resolved)} menuChanged={resolved.source === "override"} />
+        <ActiveCount
+          session={session}
+          showTally={settings.showTallyMarks}
+          showSides={settings.countMenuSides ?? false}
+          positionText={positionLabel(resolved)}
+          menuChanged={resolved.source === "override"}
+        />
       ) : (
         <StartCount date={date} meal={meal} resolved={resolved} />
       )}
@@ -42,7 +49,7 @@ export function CountScreen() {
 }
 
 function StartCount({ date, meal, resolved }: { date: string; meal: MealService; resolved: ReturnType<typeof ops.mealFor> }) {
-  const [expected, setExpected] = useState("");
+  const units = useAppState((s) => s.workspaces.stann.settings.units ?? []);
   if (resolved.source === "unanchored") {
     return (
       <Banner>
@@ -63,27 +70,8 @@ function StartCount({ date, meal, resolved }: { date: string; meal: MealService;
       )}
       <MenuList items={resolved.items} />
       <div className="mt-4 space-y-3">
-        <Field label="Slips in the stack (optional)" hint="If you know how many slips there are, the app will flag a mismatch at the end.">
-          <input
-            className={inputCls}
-            inputMode="numeric"
-            pattern="[0-9]*"
-            value={expected}
-            onChange={(e) => setExpected(e.target.value.replace(/\D/g, ""))}
-            placeholder="e.g. 46"
-          />
-        </Field>
-        <Button
-          size="lg"
-          className="w-full"
-          onClick={() =>
-            act((s) => {
-              let next = ops.startSession(s, date, meal);
-              if (expected) next = ops.updateSession(next, date, meal, (x) => C.setExpected(x, Number(expected)));
-              return next;
-            })
-          }
-        >
+        {units.length > 0 && <p className="text-sm text-muted">You&apos;ll count each unit&apos;s stack in turn: {units.join(", ")}.</p>}
+        <Button size="lg" className="w-full" onClick={() => act((s) => ops.startSession(s, date, meal))}>
           <Icon name="tally" /> Start counting {MEAL_LABELS[meal].toLowerCase()}
         </Button>
       </div>
@@ -91,7 +79,19 @@ function StartCount({ date, meal, resolved }: { date: string; meal: MealService;
   );
 }
 
-function ActiveCount({ session, showTally, positionText, menuChanged }: { session: C.CountSession; showTally: boolean; positionText: string; menuChanged: boolean }) {
+function ActiveCount({
+  session,
+  showTally,
+  showSides,
+  positionText,
+  menuChanged,
+}: {
+  session: C.CountSession;
+  showTally: boolean;
+  showSides: boolean;
+  positionText: string;
+  menuChanged: boolean;
+}) {
   const { date, meal } = session;
   const summary = useMemo(() => C.summarize(session), [session]);
   const requests = useAppState((s) => s.workspaces.stann.requests);
@@ -127,8 +127,22 @@ function ActiveCount({ session, showTally, positionText, menuChanged }: { sessio
     return m;
   }, [session, summary.lastSlipId]);
 
-  const stack = useMemo(() => (practice ? demoStack(session, session.expectedSlips ?? 41) : []), [practice, session]);
+  const units = session.units ?? [];
+  const activeUnit = session.activeUnit ?? null;
+  const stack = useMemo(() => (practice ? demoStack(session, session.expectedSlips ?? 45) : []), [practice, session]);
   const currentSlip = stack[summary.slipsProcessed];
+  // Modifications (no bun, no biscuit…) are custom extras; menu sides only show when the setting is on.
+  const visibleExtras = session.extras.filter((x) => showSides || x.key.startsWith("x_"));
+  const modSuggestions = useMemo(() => C.modificationSuggestions(session), [session]);
+  const addMod = (label: string) => {
+    if (
+      update((s) => {
+        const withExtra = C.addExtra(s, label);
+        return C.tapItem(withExtra, withExtra.extras[withExtra.extras.length - 1]!.key, session.mode === "detailed" ? summary.lastSlipId ?? undefined : undefined);
+      })
+    )
+      buzz();
+  };
 
   return (
     <div className="space-y-3 pb-20">
@@ -144,7 +158,11 @@ function ActiveCount({ session, showTally, positionText, menuChanged }: { sessio
           <Stat label="Meals" value={summary.totalMeals} big testId="total-meals" />
           <Stat label="Requests" value={reqCount} />
           <Stat label="Unclear" value={summary.unresolved} warn={summary.unresolved > 0} />
-          <Stat label="In stack" value={session.expectedSlips ?? "—"} warn={summary.discrepancy !== null && summary.discrepancy < 0} />
+          {activeUnit ? (
+            <Stat label={activeUnit} value={summary.byUnit[activeUnit]?.total ?? 0} />
+          ) : (
+            <Stat label="In stack" value={session.expectedSlips ?? "—"} warn={summary.discrepancy !== null && summary.discrepancy < 0} />
+          )}
         </div>
       </div>
 
@@ -186,7 +204,10 @@ function ActiveCount({ session, showTally, positionText, menuChanged }: { sessio
               <p className="text-xs font-bold uppercase tracking-wide">
                 Demo slip {currentSlip.n} of {stack.length} · fictional
               </p>
-              <p className="text-base font-bold">Apt: {currentSlip.room}</p>
+              <p className="text-base font-bold">
+                Room: {currentSlip.room}
+                {activeUnit ? ` · ${activeUnit}` : ""}
+              </p>
               <p className="mt-1 text-base">
                 ◯ <strong>{currentSlip.choiceLabel}</strong>
               </p>
@@ -195,6 +216,24 @@ function ActiveCount({ session, showTally, positionText, menuChanged }: { sessio
           ) : (
             <p className="font-bold">Practice stack finished — {stack.length} slips. Review and finish the count below.</p>
           )}
+        </div>
+      )}
+
+      {units.length > 0 && !locked && (
+        <div role="radiogroup" aria-label="Unit stack" className="grid gap-1 rounded-xl bg-surface-2 p-1" style={{ gridTemplateColumns: `repeat(${units.length}, minmax(0, 1fr))` }}>
+          {units.map((u) => (
+            <button
+              key={u}
+              type="button"
+              role="radio"
+              aria-checked={activeUnit === u}
+              onClick={() => update((s) => C.setActiveUnit(s, u))}
+              className={`min-h-12 rounded-lg px-1 text-sm font-bold leading-tight ${activeUnit === u ? "bg-accent text-accent-ink shadow" : "text-muted"}`}
+            >
+              {u}
+              <span className="block text-xs font-semibold tabular-nums opacity-80">{summary.byUnit[u]?.total ?? 0} slips</span>
+            </button>
+          ))}
         </div>
       )}
 
@@ -242,16 +281,17 @@ function ActiveCount({ session, showTally, positionText, menuChanged }: { sessio
       )}
 
       {/* Additional items */}
-      {session.extras.length > 0 && (
+      {(visibleExtras.length > 0 || modSuggestions.length > 0 || !locked) && (
         <Card
-          title={session.mode === "detailed" ? "Add-ons for this slip" : "Additional items"}
+          title={showSides ? (session.mode === "detailed" ? "Add-ons for this slip" : "Additional items") : "Modifications"}
           action={<span className="text-xs font-semibold text-muted">Doesn&apos;t change meal total</span>}
         >
           {session.mode === "detailed" && (
             <p className="mb-2 text-sm text-muted">{summary.lastSlipId ? "Tap what's circled on the slip you just counted, then tap the next slip's meal." : "Count a meal first, then add its items."}</p>
           )}
+          {!showSides && visibleExtras.length === 0 && <p className="mb-2 text-sm text-muted">For slips like “no bun” or “no biscuit”. Tap one below to start counting it.</p>}
           <div className="grid grid-cols-2 gap-2">
-            {session.extras.map((x) => (
+            {visibleExtras.map((x) => (
               <button
                 key={x.key}
                 type="button"
@@ -268,9 +308,16 @@ function ActiveCount({ session, showTally, positionText, menuChanged }: { sessio
               </button>
             ))}
           </div>
-          {!locked && (
-            <AddExtra onAdd={(label) => update((s) => C.addExtra(s, label))} />
+          {!locked && modSuggestions.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {modSuggestions.map((m) => (
+                <button key={m} type="button" onClick={() => addMod(m)} className="min-h-10 rounded-full border-2 border-dashed border-line px-3 text-sm font-semibold active:bg-surface-2">
+                  + {m}
+                </button>
+              ))}
+            </div>
           )}
+          {!locked && <AddExtra onAdd={(label) => update((s) => C.addExtra(s, label))} />}
         </Card>
       )}
 
@@ -411,7 +458,7 @@ function AddExtra({ onAdd }: { onAdd: (label: string) => boolean }) {
         if (onAdd(v)) setV("");
       }}
     >
-      <input className={inputCls} value={v} onChange={(e) => setV(e.target.value)} placeholder="Add item to track (e.g. Coffee, Soup)" aria-label="New item to track" />
+      <input className={inputCls} value={v} onChange={(e) => setV(e.target.value)} placeholder="Other (e.g. No onions – Burger)" aria-label="New item to track" />
       <Button type="submit" variant="outline" disabled={!v.trim()}>
         Add
       </Button>
@@ -533,6 +580,14 @@ function ReviewSheet({ open, onClose, session, requestTotal }: { open: boolean; 
               <tr key={x.key} className="border-b border-line text-muted">
                 <td className="py-1.5 pr-2">+ {x.label}</td>
                 <td className="py-1.5 text-right font-bold tabular-nums">{summary.items[x.key]}</td>
+              </tr>
+            ))}
+          {Object.entries(summary.byUnit)
+            .filter(([, v]) => v.total > 0 || (session.units ?? []).length > 0)
+            .map(([u, v]) => (
+              <tr key={`unit-${u}`} className="border-b border-line text-muted">
+                <td className="py-1.5 pr-2">{u || "No unit"}</td>
+                <td className="py-1.5 text-right font-bold tabular-nums">{v.total}</td>
               </tr>
             ))}
           <tr>

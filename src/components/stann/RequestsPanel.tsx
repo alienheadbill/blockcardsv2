@@ -26,8 +26,12 @@ export function RequestsPanel({ date, meal, countSessionId }: { date: ISODate; m
   const idType = useAppState((s) => s.workspaces.stann.settings.identifierType);
   const requests = useMemo(() => all.filter((r) => r.date === date && r.meal === meal), [all, date, meal]);
   const groups = useMemo(() => R.groupRequests(requests), [requests]);
+  const standing = useAppState((s) => s.workspaces.stann.standingRequests ?? []);
+  const units = useAppState((s) => s.workspaces.stann.settings.units ?? []);
+  const pending = useMemo(() => R.pendingStanding(standing, all, date, meal), [standing, all, date, meal]);
+  const regulars = useMemo(() => standing.filter((x) => x.meal === meal), [standing, meal]);
   const [adding, setAdding] = useState(false);
-  const [verifyFor, setVerifyFor] = useState<R.SpecialRequest | null>(null);
+  const [showRegulars, setShowRegulars] = useState(false);
   const [flagFor, setFlagFor] = useState<R.SpecialRequest | null>(null);
 
   return (
@@ -43,6 +47,23 @@ export function RequestsPanel({ date, meal, countSessionId }: { date: ISODate; m
         </Button>
       }
     >
+      {pending.length > 0 && (
+        <div className="mb-3 rounded-xl border-2 border-dashed border-accent bg-accent-soft/50 p-3">
+          <p className="text-sm font-bold">Daily regulars not added yet</p>
+          <ul className="mt-1 text-sm">
+            {pending.map((p) => (
+              <li key={p.id}>
+                {p.item}
+                {p.quantity > 1 ? ` ×${p.quantity}` : ""} — {p.identifier}
+                {p.unit ? ` (${p.unit})` : ""}
+              </li>
+            ))}
+          </ul>
+          <Button size="sm" className="mt-2" onClick={() => act((s) => ops.addStandingForService(s, date, meal, countSessionId), "Daily regulars added")}>
+            Add {pending.length} for today
+          </Button>
+        </div>
+      )}
       {requests.length === 0 ? (
         <Empty>No special requests for {MEAL_LABELS[meal].toLowerCase()} yet.</Empty>
       ) : (
@@ -64,7 +85,11 @@ export function RequestsPanel({ date, meal, countSessionId }: { date: ISODate; m
                     <p className="text-base font-bold">
                       {r.item}
                       {r.quantity > 1 && <span className="text-muted"> × {r.quantity}</span>}
-                      <span className="font-semibold text-muted"> — {r.identifier}</span>
+                      <span className="font-semibold text-muted">
+                        {" "}
+                        — {r.identifier}
+                        {r.unit ? ` · ${r.unit}` : ""}
+                      </span>
                     </p>
                     {r.notes && <p className="text-sm text-muted">Note: {r.notes}</p>}
                     <div className="mt-1 flex flex-wrap gap-1">
@@ -73,6 +98,7 @@ export function RequestsPanel({ date, meal, countSessionId }: { date: ISODate; m
                         {r.verifiedBy ? ` (${r.verifiedBy})` : ""}
                       </Badge>
                       <Badge tone={STATUS_TONE[r.status]}>{R.STATUS_LABELS[r.status]}</Badge>
+                      {r.standingId && <Badge>daily</Badge>}
                     </div>
                     {r.flagReason && <p className="mt-1 text-xs font-semibold text-danger">Flag: {r.flagReason}</p>}
                   </div>
@@ -88,9 +114,13 @@ export function RequestsPanel({ date, meal, countSessionId }: { date: ISODate; m
                         → {R.STATUS_LABELS[NEXT_STATUS[r.status]!]}
                       </Button>
                     )}
-                    {r.verification !== "verified" && (
-                      <Button size="sm" variant="outline" onClick={() => setVerifyFor(r)}>
-                        Checked diet order
+                    {r.verification !== "verified" ? (
+                      <Button size="sm" variant="outline" onClick={() => act((s) => ops.updateRequest(s, r.id, (x) => R.markVerified(x), "request.verify"))}>
+                        ✓ Diet checked
+                      </Button>
+                    ) : (
+                      <Button size="sm" variant="ghost" onClick={() => act((s) => ops.updateRequest(s, r.id, R.unmarkVerified, "request.unverify"))}>
+                        Uncheck
                       </Button>
                     )}
                     {r.verification !== "flagged" && (
@@ -109,16 +139,30 @@ export function RequestsPanel({ date, meal, countSessionId }: { date: ISODate; m
         </>
       )}
 
-      <AddRequestSheet open={adding} onClose={() => setAdding(false)} date={date} meal={meal} idType={idType} countSessionId={countSessionId} />
-      <PromptSheet
-        open={!!verifyFor}
-        title="Checked against diet order"
-        label="Your initials"
-        help="Confirm you checked this request against the resident's current authorized diet order (diet, texture, liquids, allergies). The app does not verify this for you."
-        confirm="Record check"
-        onClose={() => setVerifyFor(null)}
-        onSubmit={(v) => !!verifyFor && act((s) => ops.updateRequest(s, verifyFor.id, (x) => R.markVerified(x, v), "request.verify"))}
-      />
+      {regulars.length > 0 && (
+        <div className="mt-3">
+          <button type="button" className="text-sm font-semibold text-primary underline" onClick={() => setShowRegulars((v) => !v)} aria-expanded={showRegulars}>
+            {showRegulars ? "Hide" : "Manage"} daily regulars ({regulars.filter((x) => x.active).length})
+          </button>
+          {showRegulars && (
+            <ul className="mt-2 divide-y divide-line rounded-xl border border-line">
+              {regulars.map((x) => (
+                <li key={x.id} className="flex items-center gap-2 px-3 py-2 text-sm">
+                  <span className={`flex-1 ${x.active ? "" : "text-muted line-through"}`}>
+                    {x.item} — {x.identifier}
+                    {x.unit ? ` · ${x.unit}` : ""}
+                  </span>
+                  <Button size="sm" variant="ghost" onClick={() => act((s) => ops.setStandingActive(s, x.id, !x.active))}>
+                    {x.active ? "Stop" : "Resume"}
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      <AddRequestSheet open={adding} onClose={() => setAdding(false)} date={date} meal={meal} idType={idType} units={units} countSessionId={countSessionId} />
       <PromptSheet
         open={!!flagFor}
         title="Flag for staff review"
@@ -138,6 +182,7 @@ function AddRequestSheet({
   date,
   meal,
   idType,
+  units,
   countSessionId,
 }: {
   open: boolean;
@@ -145,22 +190,36 @@ function AddRequestSheet({
   date: ISODate;
   meal: MealService;
   idType: "room" | "name";
+  units: string[];
   countSessionId?: string;
 }) {
-  const [identifier, setIdentifier] = useState("");
+  const [room, setRoom] = useState("");
+  const [side, setSide] = useState<"L" | "R" | "">("");
+  const [name, setName] = useState("");
+  const [unit, setUnit] = useState("");
   const [item, setItem] = useState("");
   const [quantity, setQuantity] = useState(1);
   const [notes, setNotes] = useState("");
+  const [daily, setDaily] = useState(false);
+  const identifier = idType === "room" ? R.formatRoom(room, side) : name.trim();
   const submit = () => {
-    const ok = act(
-      (s) => ops.addRequest(s, { date, meal, identifier, item, quantity, notes, ...(countSessionId ? { countSessionId } : {}) }),
-      "Request added",
-    );
+    const base = { meal, identifier, item, quantity, notes, ...(unit ? { unit } : {}) };
+    const ok = act((s) => {
+      let next = s;
+      if (daily) {
+        next = ops.addStandingRequest(next, base);
+        return ops.addStandingForService(next, date, meal, countSessionId);
+      }
+      return ops.addRequest(next, { ...base, date, ...(countSessionId ? { countSessionId } : {}) });
+    }, daily ? "Daily regular saved and added for today" : "Request added");
     if (ok) {
-      setIdentifier("");
+      setRoom("");
+      setSide("");
+      setName("");
       setItem("");
       setQuantity(1);
       setNotes("");
+      setDaily(false);
       onClose();
     }
   };
@@ -174,9 +233,50 @@ function AddRequestSheet({
         }}
       >
         <Banner>Demo mode: use fictional rooms only (e.g. “Demo 104”). A room number is never a diet source — check the current diet order.</Banner>
-        <Field label={idType === "room" ? "Room" : "Resident name"}>
-          <input className={inputCls} value={identifier} onChange={(e) => setIdentifier(e.target.value)} placeholder={idType === "room" ? "Demo 207R" : "Name"} autoComplete="off" />
-        </Field>
+        {idType === "room" ? (
+          <div className="flex items-end gap-2">
+            <Field label="Room">
+              <input className={inputCls} value={room} onChange={(e) => setRoom(e.target.value)} placeholder="Demo 207" autoComplete="off" inputMode="text" />
+            </Field>
+            <div role="radiogroup" aria-label="Side of room" className="grid shrink-0 grid-cols-2 gap-1 rounded-xl bg-surface-2 p-1">
+              {(["L", "R"] as const).map((x) => (
+                <button
+                  key={x}
+                  type="button"
+                  role="radio"
+                  aria-checked={side === x}
+                  aria-label={x === "L" ? "Left side" : "Right side"}
+                  onClick={() => setSide(side === x ? "" : x)}
+                  className={`h-10 w-12 rounded-lg text-lg font-extrabold ${side === x ? "bg-primary text-primary-ink" : "text-muted"}`}
+                >
+                  {x}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <Field label="Resident name">
+            <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} autoComplete="off" />
+          </Field>
+        )}
+        {units.length > 0 && (
+          <Field label="Unit (optional)">
+            <div className="grid gap-1 rounded-xl bg-surface-2 p-1" style={{ gridTemplateColumns: `repeat(${units.length}, minmax(0, 1fr))` }} role="radiogroup" aria-label="Unit">
+              {units.map((u) => (
+                <button
+                  key={u}
+                  type="button"
+                  role="radio"
+                  aria-checked={unit === u}
+                  onClick={() => setUnit(unit === u ? "" : u)}
+                  className={`min-h-10 rounded-lg text-sm font-bold ${unit === u ? "bg-primary text-primary-ink" : "text-muted"}`}
+                >
+                  {u}
+                </button>
+              ))}
+            </div>
+          </Field>
+        )}
         <Field label="Requested item">
           <input className={inputCls} value={item} onChange={(e) => setItem(e.target.value)} placeholder="Grilled cheese" list="request-items" autoComplete="off" />
           <datalist id="request-items">
@@ -185,25 +285,29 @@ function AddRequestSheet({
             ))}
           </datalist>
         </Field>
-        <div className="flex items-end gap-3">
-          <Field label="Qty">
-            <div className="flex items-center gap-2">
-              <Button variant="outline" onClick={() => setQuantity((q) => Math.max(1, q - 1))} aria-label="Less">
-                −
-              </Button>
-              <span className="w-8 text-center text-xl font-bold" aria-live="polite">
-                {quantity}
-              </span>
-              <Button variant="outline" onClick={() => setQuantity((q) => Math.min(99, q + 1))} aria-label="More">
-                +
-              </Button>
-            </div>
-          </Field>
-        </div>
+        <Field label="Qty">
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => setQuantity((q) => Math.max(1, q - 1))} aria-label="Less">
+              −
+            </Button>
+            <span className="w-8 text-center text-xl font-bold" aria-live="polite">
+              {quantity}
+            </span>
+            <Button variant="outline" onClick={() => setQuantity((q) => Math.min(99, q + 1))} aria-label="More">
+              +
+            </Button>
+          </div>
+        </Field>
         <Field label="Prep notes (optional)" hint="Cook's note only — not a dietary order.">
           <input className={inputCls} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="white bread, onion/relish/ketchup" />
         </Field>
-        <Button type="submit" size="lg" className="w-full">
+        <label className="flex items-start gap-3 rounded-xl border border-line p-3">
+          <input type="checkbox" className="mt-0.5 h-6 w-6" checked={daily} onChange={(e) => setDaily(e.target.checked)} />
+          <span className="text-sm">
+            <strong>Repeat every day</strong> at {MEAL_LABELS[meal].toLowerCase()} — for someone who gets the same thing daily. You can stop it any time.
+          </span>
+        </label>
+        <Button type="submit" size="lg" className="w-full" disabled={!identifier || !item.trim()}>
           Add request
         </Button>
       </form>
