@@ -127,7 +127,8 @@ function ServiceCommand({ state, date, meal, now }: { state: AppState; date: ISO
           .map(({ line, res }) => (
             <li key={line.id}>
               <strong>{res.servings}</strong> {line.label}
-              {res.makeAmount ? ` → ${res.makeAmount.kitchen}` : !line.recipeId ? " (no portion size)" : ""}
+              {res.makeAmount ? ` → ${res.makeAmount.kitchen}` : ""}
+              {res.textures.length > 0 && <span className="text-xs"> ({res.textures.map((t) => `${t.count} ${t.label.replace(/ \(L\d\)/, "")}`).join(", ")})</span>}
             </li>
           ))}
       </ul>

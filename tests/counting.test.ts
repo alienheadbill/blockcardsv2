@@ -198,6 +198,30 @@ describe("counting", () => {
     expect(s.notes).toContain("gravy");
   });
 
+  it("counts IDDSI textures per entrée without changing the meal total", () => {
+    let s = tap(fresh(), ALT, 10);
+    s = C.tapTexture(s, "f4", ALT);
+    s = C.tapTexture(s, "f4", ALT);
+    s = C.tapTexture(s, "f5", ALT);
+    s = C.tapTexture(s, "d2", "drinks");
+    const sum = C.summarize(s);
+    expect(sum.totalMeals).toBe(10);
+    expect(C.textureCounts(s, sum.items)).toEqual({
+      [ALT]: [
+        { levelId: "f4", count: 2 },
+        { levelId: "f5", count: 1 },
+      ],
+      drinks: [{ levelId: "d2", count: 1 }],
+    });
+    expect(s.extras.find((x) => x.key === `t_f4_${ALT}`)!.label).toBe("Puréed (L4) – Chicken Pot Pie with Biscuit");
+    // undo removes the last texture tap; renaming the box renames its texture counters
+    s = C.undo(s);
+    expect(C.textureCounts(s, C.summarize(s).items).drinks).toBeUndefined();
+    s = C.renameOption(s, ALT, "Chicken pot");
+    expect(s.extras.find((x) => x.key === `t_f4_${ALT}`)!.label).toBe("Puréed (L4) – Chicken pot");
+    expect(() => C.tapTexture(s, "f4", "nope")).toThrow();
+  });
+
   it("groups tallies in fives", () => {
     expect(C.tallyGroups(0)).toEqual([]);
     expect(C.tallyGroups(12)).toEqual([5, 5, 2]);

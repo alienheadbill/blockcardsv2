@@ -53,9 +53,9 @@ test("first-release checklist", async ({ page }, testInfo) => {
   await expect(page.getByTestId("count-main")).toHaveText("15");
   await expect(page.getByRole("button", { name: /^Count one Veggfritata/ })).toBeVisible();
 
-  // Free-form notes
-  await page.getByRole("textbox", { name: "Notes for this meal" }).fill("Pull biscuits for tomorrow");
-  await page.getByRole("heading", { name: "Notes" }).click();
+  // Prep while counting (replaced the old Notes box)
+  await page.getByRole("textbox", { name: "New prep task" }).fill("Pull biscuits for tomorrow");
+  await page.getByRole("region", { name: /^Prep list/ }).getByRole("button", { name: "Add", exact: true }).click();
 
   // 7 (part). Additional items never change the meal total
   await page.getByRole("button", { name: "+ No biscuit – Chicken Pot Pie" }).click();
@@ -96,7 +96,7 @@ test("first-release checklist", async ({ page }, testInfo) => {
   const check = page.getByRole("checkbox", { name: "Mark done: Make Jello" });
   await check.click();
   await expect(page.getByRole("checkbox", { name: "Mark not done: Make Jello" })).toHaveAttribute("aria-checked", "true");
-  await expect(page.getByText("1 of 1 done")).toBeVisible();
+  await expect(page.getByText("1 of 2 done")).toBeVisible(); // "Pull biscuits…" was added while counting
   // menu-based suggestions are offered but not added or completed automatically
   await expect(page.getByText("Suggested from the menu").first()).toBeVisible();
 
@@ -125,7 +125,7 @@ test("first-release checklist", async ({ page }, testInfo) => {
   await page.reload();
   await expect(page.getByTestId("total-meals")).toHaveText("45");
   await expect(page.getByText("Grilled cheese — Demo 104R")).toBeVisible();
-  await expect(page.getByRole("textbox", { name: "Notes for this meal" })).toHaveValue("Pull biscuits for tomorrow");
+  await expect(page.getByRole("list", { name: "Today's prep list" }).getByText("Pull biscuits for tomorrow")).toBeVisible();
 
   // 12. Export and restore demo data
   await page.goto("/stann/reports");

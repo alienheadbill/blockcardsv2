@@ -9,14 +9,17 @@
 | Today command center (current service, steps, attention list, coming up) | ✅ | Service follows profile meals + configurable serving times |
 | 4-week rotating menu, overrides, corrections, history | ✅ | |
 | Meal counting (event log, undo, corrections, unclear slips, modifications, review/complete) | ✅ | |
-| Write-your-own tally boxes, notes | ✅ | |
+| Write-your-own tally boxes | ✅ | |
+| Prep list built while counting (menu for today + 2 days, tap to add, check off) | ✅ | Replaced the Notes box |
+| IDDSI texture counters per entrée (L3–L7) and thickened drinks (L1–L4), level guide | ✅ | Counts what the slip says; feeds Production |
 | Double-tap guard, compact mode, haptics (Android) | ✅ | iPhone can't vibrate |
 | Count by unit | ✅ | Off by default |
 | Special requests, diet-checked, flags, daily regulars | ✅ | Fictional rooms only |
-| Production calculator (portions, yield, buffer, recipes, overrides) | ✅ | |
+| Production calculator (portions, yield, buffer, recipes, overrides) | ✅ | Portion sizes optional — lines show servings when eyeballed |
 | Prep from production, templates, suggestions | ✅ | |
 | Service readiness checklist | ✅ | |
 | Temperature log with facility-configured limits | ✅ | Blank by default |
+| MealSuite / US Foods integration | ⬜ | Needs export files or API access from the facility; see roadmap |
 | Real residents / diet orders | ⛔ | Requires facility approval, auth, secure server — see `SECURITY_CHECKLIST.md` |
 
 ## Stop N Chop

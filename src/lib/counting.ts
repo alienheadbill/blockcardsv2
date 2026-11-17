@@ -13,6 +13,7 @@
 import type { ISODate } from "./dates";
 import { newId, nowISO } from "./ids";
 import { isEntree, type MealService, type MenuItem, type MenuItemKind } from "./menu/types";
+import { DRINKS_TARGET, parseTextureKey, textureKey, textureLabel } from "./iddsi";
 
 export const CUSTOM_CHOICE = "custom";
 export const UNRESOLVED_CHOICE = "unresolved";
@@ -31,7 +32,7 @@ export interface CountOption {
 export interface ExtraItem {
   key: string;
   label: string;
-  kind: MenuItemKind | "drink" | "other";
+  kind: MenuItemKind | "drink" | "other" | "texture";
 }
 
 interface BaseEvent {
@@ -212,6 +213,41 @@ export function tapItem(session: CountSession, itemKey: string, slipId?: string)
   return append(session, slipId ? { type: "item", itemKey, slipId } : { type: "item", itemKey });
 }
 
+/**
+ * Count one IDDSI texture-modified plate (or thickened drink) as printed on the slip.
+ * Like other add-ons, it never changes the meal total — it says how many of an
+ * entrée's servings need that texture.
+ */
+export function tapTexture(session: CountSession, levelId: string, target: string, slipId?: string): CountSession {
+  assertOpen(session);
+  const key = textureKey(levelId, target);
+  let s = session;
+  if (!s.extras.some((e) => e.key === key)) {
+    let label: string;
+    if (target === DRINKS_TARGET) label = textureLabel(levelId);
+    else {
+      const box = s.options.find((o) => o.key === target);
+      if (!box) throw new Error("Unknown tally box");
+      label = textureLabel(levelId, box.label);
+    }
+    s = { ...s, extras: [...s.extras, { key, label, kind: "texture" }] };
+  }
+  return tapItem(s, key, slipId);
+}
+
+/** Texture counts per tally box (and for drinks), for the count screen and production. */
+export function textureCounts(session: CountSession, items: Record<string, number>): Record<string, { levelId: string; count: number }[]> {
+  const out: Record<string, { levelId: string; count: number }[]> = {};
+  for (const x of session.extras) {
+    const p = parseTextureKey(x.key);
+    if (!p) continue;
+    const count = items[x.key] ?? 0;
+    if (count <= 0) continue;
+    (out[p.target] ??= []).push({ levelId: p.levelId, count });
+  }
+  return out;
+}
+
 /** Short, notebook-style name for an entrée: "Chicken Pot Pie with Biscuit" → "Chicken Pot Pie". */
 export function shortEntreeName(text: string): string {
   return text.split(/,|\/| w\/ | with /i)[0]!.trim() || text.trim();
@@ -228,6 +264,11 @@ export function renameOption(session: CountSession, key: string, label: string):
       if (o.key !== key) return o;
       const { menuText: _old, ...rest } = o; // a rewritten box is no longer the printed menu item
       return { ...rest, label: clean };
+    }),
+    // texture counters for this box follow the new name
+    extras: session.extras.map((x) => {
+      const p = parseTextureKey(x.key);
+      return p && p.target === key ? { ...x, label: textureLabel(p.levelId, clean) } : x;
     }),
   };
 }

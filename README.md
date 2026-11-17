@@ -76,7 +76,8 @@ These are not password-protected logins; real staff accounts need the server ver
 as four steps — **Count → Production → Prep → Ready** — each marked done / needs attention / to do, plus a
 "needs attention" list and what's coming up. The same step bar sits on top of each of those screens.
 
-- **Production** turns the finished count into amounts: servings × portion size (+ optional extra %), the raw
+- **Production** shows servings per item straight from the count (including texture counts). Portion sizes
+  are optional — add one only when you want amounts: servings × portion size (+ optional extra %), the raw
   amount to start with if you enter a cooked yield %, and how far to scale a linked recipe (portions and full
   batches). Bold amounts are rounded **up** to something measurable; the exact number is shown beside them.
   Portion sizes are remembered per dish. Changing servings or the final amount needs a reason and is logged.
@@ -92,7 +93,11 @@ as four steps — **Count → Production → Prep → Ready** — each marked do
    start with no printed menu at all. Tap **Start counting**.
 2. One tap on a box = one slip, with a running number and tally marks in fives. Tap ✎ on a box to rename it
    any time (the count stays), or **+ Add a tally box** mid-count.
-3. Use the **Notes** box at the bottom for anything else you'd normally jot down.
+3. Build today's prep list right there: the **Prep list** card shows the menu for today, tomorrow and the day
+   after — tap an item to add it to today's list, type your own, and check things off.
+4. **Textures (IDDSI)**: tap Puréed (L4), Minced & Moist (L5) or Soft & Bite-Sized (L6) under each entrée as
+   the slips say (more levels and thickened drinks L1–L4 are there too; "Level guide" explains each). These
+   don't change the meal total and show up on Production and prep tasks.
 4. **Modifications**: tap a suggestion like "+ No bun – Sloppy Joe" or "+ No biscuit – Chicken Pot Pie"
    (or type your own) to count it. They never change the meal total.
 5. **Unclear slip** for anything you can't read — you'll pick the meal before finishing.

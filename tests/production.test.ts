@@ -53,10 +53,20 @@ describe("production math", () => {
     expect(bad.warnings.join()).toMatch(/more than the count/);
   });
 
-  it("says so instead of guessing when there's no portion size", () => {
+  it("portion sizes are optional: without one the line just shows servings, no warning", () => {
     const r = PR.computeLine(line(), ctx({ k: 12 }));
+    expect(r.servings).toBe(12);
     expect(r.finished).toBeNull();
-    expect(r.warnings.join()).toMatch(/No portion size/);
+    expect(r.warnings).toEqual([]);
+  });
+
+  it("carries IDDSI texture counts from the count into the line and prep summary", () => {
+    const l = line({ portion: { qty: 1, unit: "cup" } });
+    const r = PR.computeLine(l, ctx({ k: 31 }, { textures: { k: [{ levelId: "f4", count: 3 }, { levelId: "f5", count: 2 }] } }));
+    expect(r.textures.map((t) => [t.label, t.count])).toEqual([["Puréed (L4)", 3], ["Minced & Moist (L5)", 2]]);
+    expect(PR.lineSummary(l, r)).toMatch(/3 Puréed \(L4\), 2 Minced & Moist \(L5\)$/);
+    const tooMany = PR.computeLine(l, ctx({ k: 1 }, { textures: { k: [{ levelId: "f4", count: 3 }] } }));
+    expect(tooMany.warnings.join()).toMatch(/Texture counts/);
   });
 
   it("scales a linked recipe and rounds portions/batches up", () => {

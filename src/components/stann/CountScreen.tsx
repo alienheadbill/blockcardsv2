@@ -15,6 +15,7 @@ import { TallyMarks } from "../TallyMarks";
 import { act, Badge, Banner, Button, Card, Field, inputCls, Sheet, toast } from "../ui";
 import { PromptSheet, RequestsPanel } from "./RequestsPanel";
 import { ServiceFlow } from "./ServiceFlow";
+import { PrepWhileCounting, TexturesCard } from "./CountPanels";
 
 /** Short vibration on supported phones (Android). iPhone Safari has no vibration API, so this is a no-op there. */
 const vibrate = () => {
@@ -428,9 +429,22 @@ function ActiveCount({
         </Card>
       )}
 
+      <TexturesCard
+        session={session}
+        items={summary.items}
+        locked={locked}
+        onTap={(levelId, target) => {
+          const slipId = session.mode === "detailed" ? summary.lastSlipId ?? undefined : undefined;
+          if (update((s) => C.tapTexture(s, levelId, target, slipId))) buzz();
+        }}
+      />
+
       <RequestsPanel date={date} meal={meal} countSessionId={session.id} />
 
-      <NotesCard key={session.id} initial={session.notes ?? ""} onSave={(v) => update((s) => C.setNotes(s, v))} />
+      <PrepWhileCounting date={date} meal={meal} />
+
+      {/* Notes were replaced by the prep list; older notes stay visible if there are any. */}
+      {(session.notes ?? "").trim() && <NotesCard key={session.id} initial={session.notes ?? ""} onSave={(v) => update((s) => C.setNotes(s, v))} />}
 
       <Card title="Count tools">
         <div className="flex flex-wrap gap-2">

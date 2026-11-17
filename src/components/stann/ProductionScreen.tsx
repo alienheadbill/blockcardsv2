@@ -62,7 +62,7 @@ export function ProductionScreen() {
             <Banner>The count isn&apos;t finished yet — these numbers will change as you keep counting.</Banner>
           )}
           <p className="text-sm text-muted">
-            <strong className="text-ink">{info.summary?.totalMeals ?? 0} meals counted.</strong> Set a portion size once per dish — it&apos;s remembered next time. Amounts in bold are rounded <strong>up</strong> to something you can measure; the exact number is shown beside it.
+            <strong className="text-ink">{info.summary?.totalMeals ?? 0} meals counted.</strong> Portion sizes are optional — add one only when you want amounts worked out (it&apos;s remembered next time). Amounts in bold are rounded <strong>up</strong>; the exact number is shown beside it.
           </p>
 
           {results.length === 0 ? (
@@ -173,7 +173,7 @@ function LineCard({
         <div className="min-w-0">
           <h2 className="text-lg font-extrabold leading-tight">{line.label}</h2>
           <p className="text-sm text-muted">
-            {line.portion ? `${line.portion.qty} ${line.portion.unit} per serving` : "No portion size yet"}
+            {line.portion ? `${line.portion.qty} ${line.portion.unit} per serving` : line.recipeId ? "Recipe linked" : "Eyeballed — no portion size"}
             {line.yieldPct != null && ` · ${line.yieldPct}% cooked yield`}
             {line.bufferPct > 0 && ` · +${line.bufferPct}% extra`}
           </p>
@@ -196,6 +196,12 @@ function LineCard({
           </>
         )}
       </p>
+      {res.textures.length > 0 && (
+        <p className="mt-2 rounded-lg bg-surface-2 px-2 py-1 text-sm">
+          <span className="font-bold">Textures:</span> {res.textures.map((t) => `${t.count} ${t.label}`).join(" · ")}
+          <span className="text-muted"> — included in the {res.counted}</span>
+        </p>
+      )}
       {line.source.kind === "manual" && (
         <div className="mt-2 flex items-center gap-2">
           <span className="text-sm font-semibold">Servings:</span>
@@ -275,8 +281,8 @@ function LineCard({
       ))}
 
       <div className="mt-3 flex flex-wrap gap-2">
-        <Button size="sm" variant={line.portion || line.recipeId ? "outline" : "primary"} onClick={onEdit}>
-          {line.portion || line.recipeId ? "Sizes & recipe" : "Set portion size"}
+        <Button size="sm" variant="outline" onClick={onEdit}>
+          {line.portion || line.recipeId ? "Sizes & recipe" : "Add portion / recipe (optional)"}
         </Button>
         {line.source.kind !== "manual" && (
           <Button size="sm" variant="outline" onClick={onServings}>

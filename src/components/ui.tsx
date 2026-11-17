@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState, useSyncExternalStore, type ButtonHTMLAttributes, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, useSyncExternalStore, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { dispatch } from "@/lib/state/store";
 import type { AppState } from "@/lib/state/model";
 import { Icon } from "./Icon";
@@ -89,11 +89,16 @@ export function Button({
 }
 
 export function Card({ children, className = "", title, action }: { children: ReactNode; className?: string; title?: ReactNode; action?: ReactNode }) {
+  const id = useId();
   return (
-    <section className={`rounded-2xl border border-line bg-surface p-4 shadow-sm ${className}`}>
+    <section className={`rounded-2xl border border-line bg-surface p-4 shadow-sm ${className}`} aria-labelledby={title ? id : undefined}>
       {(title || action) && (
         <div className="mb-3 flex items-center justify-between gap-2">
-          {title && <h2 className="text-lg font-bold">{title}</h2>}
+          {title && (
+            <h2 id={id} className="text-lg font-bold">
+              {title}
+            </h2>
+          )}
           {action}
         </div>
       )}

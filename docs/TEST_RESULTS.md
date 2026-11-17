@@ -4,6 +4,18 @@ All runs below were executed in this repository's cloud dev container (Linux, No
 Playwright's iPhone 13 profile). **No WebKit (Safari) engine is available here**, so nothing below is a real
 Safari run — see "Not tested".
 
+## 2026-11-17 — Cook feedback round (prep while counting, optional portions, IDDSI textures)
+
+| Suite | Result |
+|---|---|
+| Type check | ✅ |
+| Unit tests | ✅ **108 passed** (new: texture counting, rename carries to textures, optional portions, textures in production) |
+| E2E server build | ✅ 7 passed, 1 skipped (static-only offline test) |
+| E2E static build | ✅ **8 passed** |
+
+Found and fixed by the e2e run: when the keyboard closed, the sticky Undo / Review bar reappeared instantly
+under the finger, so a tap on a nearby "Add" button could land on **Undo**. Bars now return 0.4 s after typing ends.
+
 ## 2026-11-17 — Phase 1 + Phase 2 (commit after `39005c6`)
 
 | Suite | Command | Result |

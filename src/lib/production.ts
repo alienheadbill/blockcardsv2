@@ -15,6 +15,7 @@ import { newId, nowISO } from "./ids";
 import { scaleRecipe, type Recipe } from "./recipes/recipes";
 import { convert, dimensionOf, formatQty, friendly, METRIC_UNITS } from "./recipes/units";
 import type { RequestGroup } from "./requests";
+import { iddsi } from "./iddsi";
 
 export interface PortionSpec {
   qty: number;
@@ -102,6 +103,8 @@ export interface LineContext {
   items: Record<string, number>;
   requests: RequestGroup[];
   recipes: Recipe[];
+  /** IDDSI texture counts per tally box key (from the count). */
+  textures?: Record<string, { levelId: string; count: number }[]>;
 }
 
 export interface LineResult {
@@ -123,6 +126,8 @@ export interface LineResult {
   } | null;
   /** The amount to actually make (override wins over the calculation). */
   makeAmount: Qty | null;
+  /** How many of the servings need an IDDSI texture modification, from the slips. */
+  textures: { levelId: string; label: string; count: number }[];
   warnings: string[];
 }
 
@@ -158,9 +163,8 @@ export function computeLine(line: ProductionLine, ctx: LineContext): LineResult 
       else if (dimensionOf(line.portion.unit) === "count") warnings.push("Cooked yield applies to weights or volumes, not counted items.");
       else raw = toQty(total / (line.yieldPct / 100), line.portion.unit);
     }
-  } else if (servings > 0) {
-    warnings.push("No portion size yet — set one to calculate amounts.");
   }
+  // No portion size is fine: many items are eyeballed, so the line just shows servings.
 
   let recipe: LineResult["recipe"] = null;
   const r = line.recipeId ? ctx.recipes.find((x) => x.id === line.recipeId) : undefined;
@@ -174,7 +178,13 @@ export function computeLine(line: ProductionLine, ctx: LineContext): LineResult 
 
   let makeAmount = finished;
   if (line.amountOverride) makeAmount = toQty(line.amountOverride.qty, line.amountOverride.unit);
-  return { counted, subtracted, servings, overridden: !!line.servingsOverride, finished, raw, recipe, makeAmount, warnings };
+  const textures =
+    line.source.kind === "box"
+      ? (ctx.textures?.[line.source.key] ?? []).map((t) => ({ ...t, label: `${iddsi(t.levelId).name} (L${iddsi(t.levelId).level})` }))
+      : [];
+  const textured = textures.reduce((n, t) => n + t.count, 0);
+  if (textured > counted) warnings.push(`Texture counts (${textured}) are more than the count (${counted}) — check them.`);
+  return { counted, subtracted, servings, overridden: !!line.servingsOverride, finished, raw, recipe, makeAmount, textures, warnings };
 }
 
 /** Cooked yield % from a test batch: cooked weight ÷ raw weight. */
@@ -242,5 +252,6 @@ export function lineSummary(line: ProductionLine, res: LineResult): string {
   if (res.makeAmount) parts.push(`make ${res.makeAmount.kitchen}${line.amountOverride ? " (adjusted)" : ""}`);
   if (res.raw && !line.amountOverride) parts.push(`start with ${res.raw.kitchen} raw`);
   if (res.recipe) parts.push(`${res.recipe.batches} batch${res.recipe.batches === 1 ? "" : "es"} of ${res.recipe.recipe.name}`);
+  if (res.textures.length) parts.push(res.textures.map((t) => `${t.count} ${t.label}`).join(", "));
   return parts.join(" · ");
 }

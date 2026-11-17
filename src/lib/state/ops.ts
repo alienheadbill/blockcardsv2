@@ -481,7 +481,13 @@ export function productionContext(state: AppState, date: ISODate, meal: MealServ
   const summary = session ? C.summarize(session) : null;
   const requests = R.groupRequests(d.requests.filter((r) => r.date === date && r.meal === meal));
   const boxes = session ? session.options.filter((o) => o.role === "main" || o.role === "alt").map((o) => ({ key: o.key, label: o.label })) : [];
-  const ctx: PR.LineContext = { byChoice: summary?.byChoice ?? {}, items: summary?.items ?? {}, requests, recipes: d.recipes };
+  const ctx: PR.LineContext = {
+    byChoice: summary?.byChoice ?? {},
+    items: summary?.items ?? {},
+    requests,
+    recipes: d.recipes,
+    textures: session && summary ? C.textureCounts(session, summary.items) : {},
+  };
   const plan = d.production?.[C.sessionKey(date, meal)];
   return { session, summary, requests, boxes, ctx, plan };
 }
@@ -711,7 +717,8 @@ export function serviceStatus(state: AppState, date: ISODate, meal: MealService)
   const menu = mealFor(state, date, meal);
   const { session, summary, plan, ctx } = productionContext(state, date, meal);
   const results = plan ? plan.lines.map((l) => ({ line: l, res: PR.computeLine(l, ctx) })) : [];
-  const needsPortion = results.filter((r) => r.res.servings > 0 && !r.line.portion && !r.line.recipeId && !r.line.amountOverride).length;
+  // Portion sizes are optional (lots of things are eyeballed), so a missing one is never flagged.
+  const needsPortion = 0;
   const prep = d.prep.filter((t) => t.date === date && (t.meal === meal || t.meal === null));
   const prepDone = prep.filter((t) => t.done).length;
   const ready = RD.readinessProgress(d.settings.checklist, d.readiness?.[key]);

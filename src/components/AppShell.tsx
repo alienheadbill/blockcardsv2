@@ -55,13 +55,23 @@ export function AppShell({ ws, children }: { ws: WorkspaceId; children: ReactNod
     // Flag "typing" so sticky bars can get out of the way of the on-screen keyboard.
     const isField = (el: EventTarget | null) => el instanceof HTMLElement && el.matches('input:not([type="checkbox"]):not([type="radio"]):not([type="date"]):not([type="time"]):not([type="file"]), textarea, select');
     const on = (e: FocusEvent) => isField(e.target) && document.documentElement.setAttribute("data-typing", "true");
-    const off = () => document.documentElement.removeAttribute("data-typing");
+    const clear = () => document.documentElement.removeAttribute("data-typing");
+    // Bring the bars back only after the tap that ended typing has finished, so they can't
+    // pop up under the finger and catch a tap meant for an "Add" or "Save" button.
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const off = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        if (!isField(document.activeElement)) clear();
+      }, 400);
+    };
     window.addEventListener("focusin", on);
     window.addEventListener("focusout", off);
     return () => {
+      clearTimeout(timer);
       window.removeEventListener("focusin", on);
       window.removeEventListener("focusout", off);
-      off();
+      clear();
     };
   }, []);
 

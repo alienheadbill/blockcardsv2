@@ -28,6 +28,22 @@ Status: ✅ done · 🟡 partial · ⬜ planned · ⛔ blocked
 | Readiness checklist (editable) and temperature log; limits blank until a person confirms them; void-not-delete | ✅ | `lib/readiness.ts`, `stann/ReadyScreen.tsx`, route `/stann/ready` |
 | Recipe link directly on prep tasks | ✅ | `PrepBoard.tsx` |
 
+## Cook feedback (2026-11-17) ✅
+
+| Item | Status | Files |
+|---|---|---|
+| Notes box replaced by a prep list on the Count screen: menu for today/tomorrow/day after, tap to add, type your own, check off | ✅ | `stann/CountPanels.tsx` |
+| Portion sizes optional; never flagged as missing | ✅ | `lib/production.ts`, `ops.serviceStatus` |
+| IDDSI textures (Puréed L4, Minced & Moist L5, Soft & Bite-Sized L6; Liquidised L3, Easy to Chew L7; drinks L1–L4) with level guide; shown in Production and prep tasks | ✅ | `lib/iddsi.ts`, `lib/counting.ts`, `stann/CountPanels.tsx` |
+| Fix: sticky bars could reappear under the finger after typing | ✅ | `AppShell.tsx` |
+
+### Possible integrations (need input from the facility)
+
+- **MealSuite**: if it can export tray tickets / production counts (CSV or PDF), the app could import counts
+  per entrée and texture instead of tapping. Needs a sample export; no public API access is assumed.
+- **US Foods**: an exported order guide (product, pack size, price) could feed ingredient prices and pack
+  sizes for costing (Stop N Chop / Home) or St. Ann's ordering. Needs a sample export.
+
 ## Phase 3 — Stop N Chop and Home ⬜
 
 | Item | Status |

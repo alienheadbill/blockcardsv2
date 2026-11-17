@@ -19,6 +19,17 @@ test("count flows into production, prep and service readiness", async ({ page })
     await page.waitForTimeout(320);
   }
   await page.getByRole("button", { name: "+ No biscuit – Chicken Pot Pie" }).click();
+  // IDDSI textures from the slips
+  await page.getByRole("button", { name: /^Add one Puréed level 4 Chicken Pot Pie/ }).click();
+  await page.getByRole("button", { name: /^Add one Minced & Moist level 5 Chicken Pot Pie/ }).click();
+  await expect(page.getByTestId("total-meals")).toHaveText("10");
+  // Prep while counting: tomorrow's menu → today's prep list
+  const prepCard = page.getByRole("region", { name: /^Prep list/ });
+  await prepCard.getByRole("tab", { name: "Tomorrow" }).click();
+  await prepCard.getByRole("button", { name: "Add Rosy Apple Slices — for tomorrow dinner to prep" }).click();
+  await prepCard.getByRole("textbox", { name: "New prep task" }).fill("Pull biscuits");
+  await prepCard.getByRole("button", { name: "Add", exact: true }).click();
+  await expect(prepCard.getByRole("list", { name: "Today's prep list" }).getByRole("listitem")).toHaveCount(2);
   await page.getByRole("button", { name: "Review & finish" }).click();
   await page.getByRole("button", { name: "Mark count complete" }).click();
   await expect(page.getByRole("navigation", { name: "Service steps" }).getByRole("link", { name: /Count: 10 done/ })).toBeVisible();
@@ -26,9 +37,10 @@ test("count flows into production, prep and service readiness", async ({ page })
   // Production
   await page.getByRole("link", { name: "Next: work out production →" }).click();
   await expect(page.getByTestId("servings-Chicken Pot Pie")).toHaveText("6");
+  await expect(page.getByText("1 Puréed (L4) · 1 Minced & Moist (L5)")).toBeVisible();
   const potPie = page.getByRole("region", { name: "Chicken Pot Pie" });
-  await expect(potPie.getByText(/No portion size yet/).first()).toBeVisible();
-  await potPie.getByRole("button", { name: "Set portion size" }).click();
+  await expect(potPie.getByText("Eyeballed — no portion size")).toBeVisible();
+  await potPie.getByRole("button", { name: "Add portion / recipe (optional)" }).click();
   await page.getByLabel("Portion amount").fill("8");
   await page.getByLabel("Portion unit").selectOption("oz");
   await page.getByLabel("Cooked yield percent").fill("80");
@@ -43,7 +55,7 @@ test("count flows into production, prep and service readiness", async ({ page })
   await page.getByRole("combobox", { name: "How many" }).selectOption({ label: "One per Chicken Pot Pie served" });
   await page.getByRole("button", { name: "Add", exact: true }).click();
   const biscuits = page.getByRole("region", { name: "Biscuits" });
-  await biscuits.getByRole("button", { name: "Set portion size" }).click();
+  await biscuits.getByRole("button", { name: "Add portion / recipe (optional)" }).click();
   await page.getByLabel("Portion amount").fill("1");
   await page.getByLabel("Portion unit").selectOption("each");
   await page.getByRole("checkbox", { name: "No biscuit – Chicken Pot Pie" }).check();
