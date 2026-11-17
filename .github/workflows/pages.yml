@@ -32,6 +32,7 @@ jobs:
         env:
           GITHUB_PAGES: "true"
           PAGES_REPO: ${{ github.event.repository.name }}
+      - run: node scripts/write-precache.mjs out
       - run: touch out/.nojekyll
       - uses: actions/upload-pages-artifact@v3
         with:

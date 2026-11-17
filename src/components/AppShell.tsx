@@ -2,8 +2,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
-import { consumeLoadWarning, dispatch, useSaveStatus } from "@/lib/state/store";
-import { setActiveWorkspace } from "@/lib/state/ops";
+import { consumeLoadWarning, dispatch, getState, useSaveStatus } from "@/lib/state/store";
+import { archiveOldCounts, setActiveWorkspace } from "@/lib/state/ops";
+import { localToday } from "@/lib/dates";
 import { WORKSPACES, type WorkspaceId } from "@/lib/workspaces";
 import { ConverterSheet } from "./Converter";
 import { ProfileSheet } from "./ProfileSheet";
@@ -51,7 +52,24 @@ export function AppShell({ ws, children }: { ws: WorkspaceId; children: ReactNod
   const nav = mounted ? cfg.nav.filter((n, i) => i === 0 || !profile.hiddenTabs.includes(n.href) || pathname.startsWith(n.href)) : cfg.nav;
 
   useEffect(() => {
+    // Flag "typing" so sticky bars can get out of the way of the on-screen keyboard.
+    const isField = (el: EventTarget | null) => el instanceof HTMLElement && el.matches('input:not([type="checkbox"]):not([type="radio"]):not([type="date"]):not([type="time"]):not([type="file"]), textarea, select');
+    const on = (e: FocusEvent) => isField(e.target) && document.documentElement.setAttribute("data-typing", "true");
+    const off = () => document.documentElement.removeAttribute("data-typing");
+    window.addEventListener("focusin", on);
+    window.addEventListener("focusout", off);
+    return () => {
+      window.removeEventListener("focusin", on);
+      window.removeEventListener("focusout", off);
+      off();
+    };
+  }, []);
+
+  useEffect(() => {
     dispatch((s) => setActiveWorkspace(s, ws));
+    // Housekeeping: slim old completed counts so phone storage doesn't fill up.
+    const keep = getState().workspaces.stann.settings.keepTapLogDays ?? 120;
+    dispatch((s) => archiveOldCounts(s, localToday(), keep));
     setWarning(consumeLoadWarning());
   }, [ws]);
 
@@ -115,7 +133,7 @@ export function AppShell({ ws, children }: { ws: WorkspaceId; children: ReactNod
         </Hydrated>
       </main>
 
-      <nav aria-label={`${cfg.name} navigation`} className="no-print safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface shadow-[0_-2px_8px_rgba(0,0,0,0.06)]">
+      <nav aria-label={`${cfg.name} navigation`} className="no-print hide-when-typing safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface shadow-[0_-2px_8px_rgba(0,0,0,0.06)]">
         <ul className="mx-auto flex max-w-3xl">
           {nav.map((item) => {
             const active = isActive(item.href);

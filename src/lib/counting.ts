@@ -70,9 +70,60 @@ export interface CountSession {
   activeUnit: string | null;
   /** Free-form notes for this meal — the cook's scratch space. */
   notes?: string;
+  /**
+   * Set when an old, completed count has been slimmed down to save storage:
+   * the tap-by-tap events are dropped but totals, corrections and their
+   * reasons, and completion are kept.
+   */
+  archived?: ArchivedCount;
   events: CountEvent[];
   status: CountStatus;
   createdAt: string;
+}
+
+export interface ArchivedCount {
+  summary: CountSummary;
+  corrections: { at: string; label: string; delta: number; reason: string }[];
+  reopens: { at: string; reason: string }[];
+  completedAt: string | null;
+  tapCount: number;
+  compactedAt: string;
+}
+
+/**
+ * Slim a completed count down to its totals and correction history.
+ * Returns the session unchanged if it isn't complete or is already archived.
+ */
+export function archiveSession(session: CountSession, now = nowISO()): CountSession {
+  if (session.status !== "complete" || session.archived) return session;
+  const corrections = session.events.flatMap((e) =>
+    e.type === "correction" && !undoneIds(session).has(e.id)
+      ? [{ at: e.at, label: labelFor(session, e.target.kind === "slip" ? e.target.choice : e.target.itemKey), delta: e.delta, reason: e.reason }]
+      : [],
+  );
+  const reopens = session.events.flatMap((e) => (e.type === "reopen" ? [{ at: e.at, reason: e.reason }] : []));
+  const completed = [...session.events].reverse().find((e) => e.type === "complete");
+  return {
+    ...session,
+    events: [],
+    archived: {
+      summary: summarize(session),
+      corrections,
+      reopens,
+      completedAt: completed?.at ?? null,
+      tapCount: session.events.length,
+      compactedAt: now,
+    },
+  };
+}
+
+/**
+ * True when a tap on the same box comes so soon after the last one that it's
+ * almost certainly a bounce or double tap (a cook reads one slip per tap).
+ * Taps on different boxes are never blocked.
+ */
+export function isDuplicateTap(last: { key: string; at: number } | null, key: string, at: number, windowMs: number): boolean {
+  return !!last && windowMs > 0 && last.key === key && at - last.at >= 0 && at - last.at < windowMs;
 }
 
 export const sessionKey = (date: ISODate, meal: MealService) => `${date}|${meal}`;
@@ -138,6 +189,7 @@ function append(session: CountSession, event: NewEvent): CountSession {
 }
 
 function assertOpen(session: CountSession) {
+  if (session.archived) throw new Error("This count was archived to save space — totals are kept but it can't be changed.");
   if (session.status === "complete") throw new Error("This count is marked complete. Reopen it to make changes.");
 }
 
@@ -316,6 +368,7 @@ export interface CountSummary {
 }
 
 export function summarize(session: CountSession): CountSummary {
+  if (session.archived) return session.archived.summary;
   const undone = undoneIds(session);
   const slipChoice = new Map<string, string>();
   const byChoice: Record<string, number> = Object.fromEntries(session.options.map((o) => [o.key, 0]));
@@ -428,6 +481,7 @@ export function complete(session: CountSession, acknowledged: string[]): CountSe
 
 export function reopen(session: CountSession, reason: string): CountSession {
   if (session.status !== "complete") return session;
+  if (session.archived) throw new Error("This count was archived to save space and can't be reopened.");
   if (!reason.trim()) throw new Error("A reason is required to reopen a completed count");
   return { ...append(session, { type: "reopen", reason: reason.trim() }), status: "counting" };
 }

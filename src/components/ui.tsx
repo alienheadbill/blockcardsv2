@@ -66,7 +66,8 @@ type Variant = "primary" | "accent" | "ghost" | "danger" | "outline";
 const VARIANTS: Record<Variant, string> = {
   primary: "bg-primary text-primary-ink hover:opacity-95",
   accent: "bg-accent text-accent-ink hover:opacity-95",
-  ghost: "bg-transparent text-ink hover:bg-surface-2",
+  // no text color: inherits ink, and callers can pass text-danger etc. without a CSS-order fight
+  ghost: "bg-transparent hover:bg-surface-2",
   danger: "bg-danger text-white",
   outline: "border-2 border-line bg-surface text-ink hover:bg-surface-2",
 };
@@ -142,10 +143,28 @@ export function Sheet({ open, onClose, title, children }: { open: boolean; onClo
     const prev = document.activeElement as HTMLElement | null;
     const first = ref.current?.querySelector<HTMLElement>("input, select, textarea, button:not([data-close])");
     first?.focus();
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") return onClose();
+      if (e.key !== "Tab" || !ref.current) return;
+      // keep keyboard focus inside the sheet
+      const items = [...ref.current.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select, textarea, [tabindex]:not([tabindex="-1"])')];
+      if (!items.length) return;
+      const first = items[0]!;
+      const last = items[items.length - 1]!;
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
     window.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden"; // stop the page behind from scrolling
     return () => {
       window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
       prev?.focus?.();
     };
   }, [open, onClose]);

@@ -67,6 +67,14 @@ export interface StAnnData extends Common {
     defaultMeal: MealService | "auto";
     /** Also show the menu's sides/desserts/fruit as counters (off: only entrées + modifications). */
     countMenuSides: boolean;
+    /** Vibrate on each count tap where the phone supports it (not iPhone Safari). */
+    hapticFeedback?: boolean;
+    /** Smaller count screen so both boxes and Undo fit without scrolling. */
+    compactCounting?: boolean;
+    /** Ignore a second tap on the same box within this many ms (0 = off). */
+    tapGuardMs?: number;
+    /** Keep tap-by-tap logs of completed counts this many days, then keep totals + corrections only (0 = forever). */
+    keepTapLogDays?: number;
   };
   rotation: RotationConfig;
   corrections: Record<string, MenuCorrection>;
@@ -127,6 +135,10 @@ export const DEFAULT_STANN_SETTINGS: StAnnData["settings"] = {
   units: [],
   defaultMeal: "dinner",
   countMenuSides: false,
+  hapticFeedback: true,
+  compactCounting: false,
+  tapGuardMs: 300,
+  keepTapLogDays: 120,
 };
 
 export const CONFIRMED_ANCHOR_NOTE =

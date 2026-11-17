@@ -1,7 +1,15 @@
 /**
  * Walks the brief's "Definition of done for first release" on an iPhone-sized screen.
  */
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator } from "@playwright/test";
+
+/** Tap like a person: just over the 0.3 s same-box double-tap guard. */
+async function tapTimes(box: Locator, n: number) {
+  for (let i = 0; i < n; i++) {
+    await box.click();
+    await box.page().waitForTimeout(320);
+  }
+}
 import fs from "node:fs";
 
 const DATE = "2026-11-16"; // Monday — Week 2 with the demo rotation anchor
@@ -11,7 +19,7 @@ test("first-release checklist", async ({ page }, testInfo) => {
   // 1–2. Open the app and pick St. Ann
   await page.goto("/");
   await page.getByRole("link", { name: /St\. Ann Rehabilitation/ }).click();
-  await expect(page).toHaveURL(/\/stann$/);
+  await expect(page).toHaveURL(/\/stann\/?$/);
   await expect(page.getByRole("region", { name: "Today" })).toBeVisible();
 
   // 3. View a selected date and meal menu
@@ -26,8 +34,8 @@ test("first-release checklist", async ({ page }, testInfo) => {
   await page.getByRole("button", { name: /Start counting dinner/ }).click();
   const main = page.getByRole("button", { name: /^Count one Vegetable Frittata/ });
   const alt = page.getByRole("button", { name: /^Count one Chicken Pot Pie/ });
-  for (let i = 0; i < 15; i++) await main.click();
-  for (let i = 0; i < 31; i++) await alt.click();
+  await tapTimes(main, 15);
+  await tapTimes(alt, 31);
   await expect(page.getByRole("radiogroup", { name: "Unit stack" })).toHaveCount(0); // units off by default
   await expect(page.getByTestId("total-meals")).toHaveText("46");
   await expect(page.getByTestId("count-main")).toHaveText("15");
@@ -190,4 +198,30 @@ test("shopping list items can be deleted", async ({ page }) => {
   await page.getByRole("button", { name: "Delete Milk" }).click();
   await expect(page.getByText("Milk")).toHaveCount(0);
   await expect(page.getByText("Eggs")).toBeVisible();
+});
+
+test("a bounced double tap counts once; taps on different boxes always count", async ({ page }) => {
+  await page.goto("/stann/counts?date=2026-11-16&meal=dinner");
+  await page.getByRole("button", { name: /Start counting dinner/ }).click();
+  const main = page.getByRole("button", { name: /^Count one Vegetable Frittata/ });
+  const alt = page.getByRole("button", { name: /^Count one Chicken Pot Pie/ });
+  await main.dblclick();
+  await expect(page.getByTestId("total-meals")).toHaveText("1");
+  await expect(page.getByText(/Double tap on the same box ignored/)).toBeVisible();
+  await alt.click(); // immediately, different box
+  await expect(page.getByTestId("total-meals")).toHaveText("2");
+});
+
+test("sheets keep keyboard focus inside and close with Escape", async ({ page }) => {
+  await page.goto("/stann/counts?date=2026-11-16&meal=dinner");
+  await page.getByRole("button", { name: /Start counting dinner/ }).click();
+  await page.getByRole("button", { name: "+ Request" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  for (let i = 0; i < 25; i++) {
+    await page.keyboard.press("Tab");
+    expect(await dialog.evaluate((d) => d.contains(document.activeElement))).toBe(true);
+  }
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
 });

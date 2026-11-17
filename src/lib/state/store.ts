@@ -65,14 +65,71 @@ export function dispatch(update: (s: AppState) => AppState): void {
   emit();
 }
 
-export function replaceState(next: AppState) {
+const BEFORE_KEY = `${STORAGE_KEY}:before-replace`;
+
+/** Keep one copy of the current data before a restore/reset so it can be undone. Best effort. */
+function snapshot(label: string): boolean {
+  try {
+    window.localStorage.setItem(BEFORE_KEY, JSON.stringify({ label, at: new Date().toISOString(), state: getState() }));
+    return true;
+  } catch {
+    return false; // not enough room for a second copy — the caller already confirmed with the user
+  }
+}
+
+export function replaceState(next: AppState, undoLabel?: string) {
+  if (undoLabel) snapshot(undoLabel);
   state = next;
   persist(next);
   emit();
 }
 
 export function resetDemo() {
-  replaceState(initialState());
+  replaceState(initialState(), "reset");
+}
+
+export function lastReplace(): { label: string; at: string } | null {
+  try {
+    const raw = window.localStorage.getItem(BEFORE_KEY);
+    if (!raw) return null;
+    const { label, at } = JSON.parse(raw) as { label: string; at: string };
+    return { label, at };
+  } catch {
+    return null;
+  }
+}
+
+/** Put back the data from before the last restore/reset. */
+export function undoLastReplace(): boolean {
+  try {
+    const raw = window.localStorage.getItem(BEFORE_KEY);
+    if (!raw) return false;
+    const parsed = appStateSchema.safeParse(migrate(JSON.parse(raw).state));
+    if (!parsed.success) return false;
+    state = parsed.data as unknown as AppState;
+    persist(state);
+    window.localStorage.removeItem(BEFORE_KEY);
+    emit();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Approximate browser storage use. Safari/Chrome allow ~5 MB (UTF-16) per site for localStorage. */
+export const STORAGE_QUOTA_BYTES = 5 * 1024 * 1024;
+export function storageStats(): { bytes: number; pct: number } {
+  let chars = 0;
+  try {
+    for (let i = 0; i < window.localStorage.length; i++) {
+      const k = window.localStorage.key(i);
+      if (k?.startsWith("kitchen-blockcards")) chars += k.length + (window.localStorage.getItem(k)?.length ?? 0);
+    }
+  } catch {
+    /* storage unavailable */
+  }
+  const bytes = chars * 2;
+  return { bytes, pct: Math.round((bytes / STORAGE_QUOTA_BYTES) * 100) };
 }
 
 function subscribe(listener: () => void) {

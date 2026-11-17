@@ -61,7 +61,8 @@ export function formatShort(date: ISODate): string {
   return toUTC(date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
 }
 
-/** "Mon, Nov 16, 2026" — fits a phone header. */
-export function formatMedium(date: ISODate): string {
-  return toUTC(date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+/** "Mon, Nov 16" (this year) or "Mon, Nov 16, 2027" — fits a phone header. */
+export function formatMedium(date: ISODate, now: Date = new Date()): string {
+  const sameYear = date.slice(0, 4) === String(now.getFullYear());
+  return toUTC(date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", ...(sameYear ? {} : { year: "numeric" }), timeZone: "UTC" });
 }

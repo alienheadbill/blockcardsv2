@@ -32,7 +32,7 @@
   --border: #d6d6d3;
   --primary: #26272b; /* charcoal */
   --primary-ink: #ffffff;
-  --accent: #e2570f; /* orange */
+  --accent: #c2410c; /* orange (darkened for 4.5:1 with white text) */
   --accent-soft: #ffe6d6;
   --accent-ink: #ffffff;
   --paper: #ffffff;
@@ -47,7 +47,7 @@
   --border: #d9d2bf;
   --primary: #4f7356; /* sage */
   --primary-ink: #ffffff;
-  --accent: #a8823f;
+  --accent: #8a6a2f; /* gold (darkened for 4.5:1 with white text) */
   --accent-soft: #efe5cf;
   --accent-ink: #ffffff;
   --paper: #fffdf8;
@@ -97,6 +97,25 @@ button {
 }
 
 /* Notebook paper: blue rules like the spiral pad. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+  .active\:scale-\[0\.97\]:active,
+  .active\:scale-\[0\.98\]:active,
+  .active\:scale-\[0\.99\]:active {
+    scale: none !important;
+  }
+}
+
+/* Hide sticky action bars while typing so the iPhone keyboard doesn't cover the field. */
+html[data-typing="true"] .hide-when-typing {
+  display: none;
+}
+
 .paper {
   background-color: var(--paper);
   background-image: repeating-linear-gradient(to bottom, transparent 0, transparent 31px, var(--rule) 31px, var(--rule) 32px);

@@ -1,11 +1,29 @@
 /* Kitchen Blockcards service worker — caches the app shell only.
  * App data lives in the page (demo mode) and is never cached here. */
-const CACHE = "blockcards-shell-v2";
+const CACHE = "blockcards-shell-v3";
 // Works at the site root or under a sub-path (GitHub Pages: /blockcardsv2/).
 const SCOPE = self.registration.scope;
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(CACHE).then((c) => c.addAll([SCOPE, `${SCOPE}icon.svg`, `${SCOPE}manifest.webmanifest`])).then(() => self.skipWaiting()));
+  // The static build ships precache.json listing every page and asset, so any screen
+  // opens offline after the first visit — not just the ones already visited.
+  event.waitUntil(
+    caches
+      .open(CACHE)
+      .then(async (c) => {
+        await c.addAll([SCOPE, `${SCOPE}icon.svg`, `${SCOPE}manifest.webmanifest`]);
+        try {
+          const res = await fetch(`${SCOPE}precache.json`, { cache: "no-store" });
+          if (res.ok) {
+            const list = await res.json();
+            await Promise.allSettled(list.map((p) => c.add(SCOPE + p)));
+          }
+        } catch {
+          /* server build has no precache list */
+        }
+      })
+      .then(() => self.skipWaiting()),
+  );
 });
 
 self.addEventListener("activate", (event) => {

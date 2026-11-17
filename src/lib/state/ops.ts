@@ -2,7 +2,7 @@
  * Pure state transitions. UI calls these through `dispatch`, tests call them directly.
  */
 import * as C from "../counting";
-import type { ISODate } from "../dates";
+import { addDays, type ISODate } from "../dates";
 import { newId, nowISO } from "../ids";
 import { FALL_WINTER, SEASONS } from "../menu/fallWinter";
 import { overrideKey, resolveMeal, type ResolvedMeal } from "../menu/rotation";
@@ -443,4 +443,29 @@ export function deleteProfile(state: AppState, ws: WorkspaceId, id: string): App
   if (d.profiles.length <= 1) throw new Error("Keep at least one profile");
   const profiles = d.profiles.filter((p) => p.id !== id);
   return updateWorkspace(state, ws, (x) => ({ ...x, profiles, activeProfileId: x.activeProfileId === id ? profiles[0]!.id : x.activeProfileId }));
+}
+
+// ───────────────────────── storage housekeeping ─────────────────────────
+
+/**
+ * Archive completed St. Ann counts older than `keepDays` (totals, corrections and
+ * reasons are kept; individual taps are dropped). Returns the same state object
+ * when there's nothing to do.
+ */
+export function archiveOldCounts(state: AppState, today: ISODate, keepDays: number): AppState {
+  if (!(keepDays > 0)) return state;
+  const cutoff = addDays(today, -keepDays);
+  const counts = state.workspaces.stann.counts;
+  let changed = 0;
+  const next: typeof counts = {};
+  for (const [k, s] of Object.entries(counts)) {
+    const a = s.date < cutoff ? C.archiveSession(s) : s;
+    if (a !== s) changed++;
+    next[k] = a;
+  }
+  if (!changed) return state;
+  return updateWorkspace(state, "stann", (d) => ({ ...d, counts: next }), {
+    action: "count.archive",
+    detail: `${changed} completed count(s) older than ${keepDays} days slimmed to totals + corrections`,
+  });
 }

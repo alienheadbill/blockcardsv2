@@ -192,6 +192,27 @@ function Settings() {
           <span className="font-semibold">Show tally marks on count panels</span>
         </label>
         <label className="flex items-center gap-3">
+          <input type="checkbox" className="h-6 w-6" checked={settings.hapticFeedback ?? true} onChange={(e) => save({ hapticFeedback: e.target.checked })} />
+          <span className="font-semibold">Vibrate on each count tap (Android; iPhone doesn&apos;t allow it)</span>
+        </label>
+        <Field label="Ignore double taps on the same box" hint="Stops a bounced finger from counting one slip twice. Taps on different boxes are never blocked.">
+          <select className={inputCls} value={settings.tapGuardMs ?? 300} onChange={(e) => save({ tapGuardMs: Number(e.target.value) })}>
+            <option value={0}>Off</option>
+            <option value={200}>Within 0.2 seconds</option>
+            <option value={300}>Within 0.3 seconds (default)</option>
+            <option value={500}>Within 0.5 seconds</option>
+          </select>
+        </Field>
+        <Field label="Keep tap-by-tap logs of finished counts" hint="After this, old finished counts keep their totals, corrections and reasons, but not every single tap. Saves phone storage.">
+          <select className={inputCls} value={settings.keepTapLogDays ?? 120} onChange={(e) => save({ keepTapLogDays: Number(e.target.value) })}>
+            <option value={30}>30 days</option>
+            <option value={60}>60 days</option>
+            <option value={120}>120 days (default)</option>
+            <option value={365}>1 year</option>
+            <option value={0}>Forever (storage may fill up)</option>
+          </select>
+        </Field>
+        <label className="flex items-center gap-3">
           <input type="checkbox" className="h-6 w-6" checked={settings.countMenuSides ?? false} onChange={(e) => save({ countMenuSides: e.target.checked })} />
           <span className="font-semibold">Also count menu sides, desserts &amp; fruit (off = entrées + modifications only)</span>
         </label>

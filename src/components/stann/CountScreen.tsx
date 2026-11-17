@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import * as C from "@/lib/counting";
 import { demoStack } from "@/lib/demo/slips";
 import { MEAL_LABELS, type MealService } from "@/lib/menu/types";
@@ -15,7 +15,8 @@ import { TallyMarks } from "../TallyMarks";
 import { act, Badge, Banner, Button, Card, Field, inputCls, Sheet, toast } from "../ui";
 import { PromptSheet, RequestsPanel } from "./RequestsPanel";
 
-const buzz = () => {
+/** Short vibration on supported phones (Android). iPhone Safari has no vibration API, so this is a no-op there. */
+const vibrate = () => {
   try {
     navigator.vibrate?.(12);
   } catch {
@@ -149,7 +150,20 @@ function ActiveCount({
   const last = C.lastUndoable(session);
   const update = (fn: (s: C.CountSession) => C.CountSession, log?: { action: string; detail: string }) => act((st) => ops.updateSession(st, date, meal, fn, log));
 
+  const settings = useAppState((s) => s.workspaces.stann.settings);
+  const compact = settings.compactCounting ?? false;
+  const buzz = () => (settings.hapticFeedback ?? true) && vibrate();
+  const lastTap = useRef<{ key: string; at: number } | null>(null);
+  const [ignoredAt, setIgnoredAt] = useState(0);
   const tap = (key: string) => {
+    const now = performance.now();
+    // Bounced / double taps on the same box are ignored; taps on different boxes never are.
+    if (C.isDuplicateTap(lastTap.current, key, now, settings.tapGuardMs ?? 300)) {
+      setIgnoredAt(now);
+      return;
+    }
+    lastTap.current = { key, at: now };
+    if (ignoredAt) setIgnoredAt(0);
     if (update((s) => C.tapSlip(s, key))) buzz();
   };
   const tapItem = (key: string) => {
@@ -186,7 +200,21 @@ function ActiveCount({
   return (
     <div className="space-y-3 pb-20">
       {/* Summary strip */}
-      <div className="rounded-2xl bg-primary p-3 text-primary-ink shadow">
+      <div className={`rounded-2xl bg-primary text-primary-ink shadow ${compact ? "p-2" : "p-3"}`}>
+        {compact ? (
+          <div className="flex items-center justify-between gap-2" aria-live="polite">
+            <p className="text-sm font-semibold">
+              <span className="text-2xl font-extrabold tabular-nums" data-testid="total-meals">
+                {summary.totalMeals}
+              </span>{" "}
+              meals
+              {summary.unresolved > 0 && <span className="ml-2 rounded bg-warn-soft px-1 text-warn">{summary.unresolved} unclear</span>}
+              {reqCount > 0 && <span className="ml-2 opacity-90">· {reqCount} req</span>}
+            </p>
+            {locked ? <Badge tone="ok">Complete ✓</Badge> : <Badge tone="accent">Counting</Badge>}
+          </div>
+        ) : (
+        <>
         <div className="flex items-center justify-between gap-2">
           <p className="text-sm font-semibold opacity-90">
             {positionText} · {MEAL_LABELS[meal]}
@@ -207,6 +235,8 @@ function ActiveCount({
             )
           )}
         </div>
+        </>
+        )}
       </div>
 
       {menuChanged && <Banner tone="info">The menu for this date was changed. Tap ✎ on a box to rewrite its name if needed.</Banner>}
@@ -234,8 +264,16 @@ function ActiveCount({
               </button>
             ))}
           </div>
+          <Button
+            size="sm"
+            variant={compact ? "accent" : "outline"}
+            aria-pressed={compact}
+            onClick={() => act((st) => ({ ...st, workspaces: { ...st.workspaces, stann: { ...st.workspaces.stann, settings: { ...st.workspaces.stann.settings, compactCounting: !compact } } } }))}
+          >
+            Compact
+          </Button>
           <Button size="sm" variant={practice ? "accent" : "outline"} onClick={() => setPractice((p) => !p)} aria-pressed={practice}>
-            Practice slips
+            Practice
           </Button>
         </div>
       )}
@@ -280,6 +318,12 @@ function ActiveCount({
         </div>
       )}
 
+      {ignoredAt > 0 && (
+        <p key={ignoredAt} role="status" className="text-center text-xs font-semibold text-muted">
+          Double tap on the same box ignored — tap again if that was a second slip.
+        </p>
+      )}
+
       {/* Main tally panels — the two-column notebook */}
       <div className={`grid gap-3 ${entrees.length === 1 ? "grid-cols-1" : "grid-cols-2"}`}>
         {entrees.map((o) => (
@@ -289,10 +333,10 @@ function ActiveCount({
             disabled={locked}
             onClick={() => tap(o.key)}
             aria-label={`Count one ${o.label}. Now ${summary.byChoice[o.key] ?? 0}.`}
-            className="paper flex h-full min-h-44 w-full flex-col rounded-2xl border-2 border-ink/70 p-3 pt-4 text-left shadow-sm transition active:scale-[0.97] active:bg-accent-soft disabled:opacity-70"
+            className={`paper flex h-full w-full flex-col rounded-2xl border-2 border-ink/70 p-3 pt-4 text-left shadow-sm transition active:scale-[0.97] active:bg-accent-soft disabled:opacity-70 ${compact ? "min-h-32" : "min-h-44"}`}
           >
             <span className="line-clamp-3 border-b-2 border-ink/60 pb-1 pr-8 font-[family-name:var(--font-hand)] text-lg font-bold leading-snug">{o.label}</span>
-            <span className="mt-2 flex-1">{showTally && <TallyMarks count={summary.byChoice[o.key] ?? 0} />}</span>
+            <span className="mt-2 flex-1">{showTally && !compact && <TallyMarks count={summary.byChoice[o.key] ?? 0} />}</span>
             <span className="mt-2 self-center rounded-lg border-2 border-ink px-4 text-4xl font-extrabold tabular-nums" data-testid={`count-${o.role}`}>
               {summary.byChoice[o.key] ?? 0}
             </span>
@@ -397,7 +441,7 @@ function ActiveCount({
       </Card>
 
       {/* Sticky action bar above bottom nav */}
-      <div className="no-print fixed inset-x-0 bottom-16 z-30 mb-[env(safe-area-inset-bottom)] px-4">
+      <div className="no-print hide-when-typing fixed inset-x-0 bottom-16 z-30 mb-[env(safe-area-inset-bottom)] px-4">
         <div className="mx-auto flex max-w-3xl gap-2 rounded-2xl border border-line bg-surface/95 p-2 shadow-lg backdrop-blur">
           <Button
             variant="outline"

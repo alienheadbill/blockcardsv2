@@ -3,7 +3,7 @@ import { useMemo, useRef, useState } from "react";
 import { exportFull, exportWorkspace, restore } from "@/lib/state/backup";
 import type { InventoryItem } from "@/lib/state/model";
 import * as ops from "@/lib/state/ops";
-import { getState, replaceState, resetDemo, useAppState } from "@/lib/state/store";
+import { getState, lastReplace, replaceState, resetDemo, storageStats, undoLastReplace, useAppState } from "@/lib/state/store";
 import { WORKSPACES, type WorkspaceId } from "@/lib/workspaces";
 import { Icon } from "./Icon";
 import { act, Badge, Banner, Button, Card, downloadFile, Empty, Field, inputCls, Sheet, toast } from "./ui";
@@ -218,6 +218,8 @@ export function AuditLog({ ws }: { ws: WorkspaceId }) {
 export function BackupPanel({ ws }: { ws: WorkspaceId }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
+  const [undoInfo, setUndoInfo] = useState(() => lastReplace());
+  const [stats] = useState(() => storageStats());
   const stamp = () => new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-");
   const onFile = async (file: File) => {
     setError(null);
@@ -226,12 +228,50 @@ export function BackupPanel({ ws }: { ws: WorkspaceId }) {
     const res = restore(getState(), text, ws);
     if (!res.ok) return setError(res.error);
     if (!window.confirm(`${res.summary.replace("Restored", "Replace")} with the backup? Current data in that scope will be overwritten.`)) return;
-    replaceState(res.state);
+    replaceState(res.state, "restore");
     toast(res.summary);
+    setUndoInfo(lastReplace());
   };
   return (
     <Card title="Backup & restore">
-      <p className="mb-3 text-sm text-muted">Demo data is stored only on this device. Download a backup to keep a copy or move it to another phone.</p>
+      <p className="mb-3 text-sm text-muted">
+        Demo data is stored only on this phone and is <strong>not</strong> shared with other devices. Download a backup to keep a copy or move it to another phone.
+      </p>
+      <div className="mb-3">
+        <div className="flex justify-between text-xs font-semibold text-muted">
+          <span>Storage used on this phone</span>
+          <span>
+            {(stats.bytes / 1024 / 1024).toFixed(2)} MB of about 5 MB ({stats.pct}%)
+          </span>
+        </div>
+        <div className="mt-1 h-2 overflow-hidden rounded-full bg-surface-2" role="progressbar" aria-label="Storage used" aria-valuenow={stats.pct} aria-valuemin={0} aria-valuemax={100}>
+          <div className={`h-full ${stats.pct >= 70 ? "bg-danger" : "bg-ok"}`} style={{ width: `${Math.min(100, stats.pct)}%` }} />
+        </div>
+        {stats.pct >= 70 && (
+          <div className="mt-2">
+            <Banner tone="warn">Storage is getting full. Download a backup, then lower “keep tap-by-tap logs” in Kitchen settings so old counts are slimmed down.</Banner>
+          </div>
+        )}
+      </div>
+      {undoInfo && (
+        <div className="mb-3 flex items-center justify-between gap-2 rounded-xl bg-surface-2 p-2 text-sm">
+          <span>
+            Last {undoInfo.label} at {new Date(undoInfo.at).toLocaleString([], { month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit" })}
+          </span>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              if (window.confirm(`Put back the data from before the ${undoInfo.label}?`) && undoLastReplace()) {
+                toast(`Undid the ${undoInfo.label}`);
+                setUndoInfo(null);
+              }
+            }}
+          >
+            Undo {undoInfo.label}
+          </Button>
+        </div>
+      )}
       <div className="grid gap-2 sm:grid-cols-2">
         <Button variant="outline" onClick={() => downloadFile(`blockcards-${ws}-${stamp()}.json`, JSON.stringify(exportWorkspace(getState(), ws), null, 2))}>
           Download {WORKSPACES[ws].name}
@@ -249,6 +289,7 @@ export function BackupPanel({ ws }: { ws: WorkspaceId }) {
             if (window.confirm("Erase ALL demo data on this device and start over? Download a backup first if you need it.")) {
               resetDemo();
               toast("Demo data reset");
+              setUndoInfo(lastReplace());
             }
           }}
         >

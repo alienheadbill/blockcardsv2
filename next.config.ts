@@ -8,7 +8,8 @@ import type { NextConfig } from "next";
  *    so nothing is lost by going static.
  */
 const isPages = process.env.GITHUB_PAGES === "true";
-const basePath = isPages ? `/${process.env.PAGES_REPO ?? "blockcardsv2"}` : "";
+// PAGES_BASE overrides the sub-path ("" = serve from the root, used by the static e2e tests).
+const basePath = isPages ? (process.env.PAGES_BASE ?? `/${process.env.PAGES_REPO ?? "blockcardsv2"}`) : "";
 
 const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
@@ -20,9 +21,9 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
-  env: { NEXT_PUBLIC_BASE_PATH: basePath },
+  env: { NEXT_PUBLIC_BASE_PATH: basePath, NEXT_PUBLIC_STATIC: isPages ? "true" : "false" },
   ...(isPages
-    ? { output: "export", basePath, trailingSlash: true, images: { unoptimized: true } }
+    ? { output: "export", ...(basePath ? { basePath } : {}), trailingSlash: true, images: { unoptimized: true } }
     : {
         async headers() {
           return [{ source: "/:path*", headers: securityHeaders }];
