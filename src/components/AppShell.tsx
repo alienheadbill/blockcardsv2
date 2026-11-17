@@ -6,6 +6,8 @@ import { consumeLoadWarning, dispatch, useSaveStatus } from "@/lib/state/store";
 import { setActiveWorkspace } from "@/lib/state/ops";
 import { WORKSPACES, type WorkspaceId } from "@/lib/workspaces";
 import { ConverterSheet } from "./Converter";
+import { ProfileSheet } from "./ProfileSheet";
+import { useProfile } from "./useProfile";
 import { Icon } from "./Icon";
 import { Banner, Hydrated, Toasts } from "./ui";
 
@@ -42,6 +44,11 @@ export function AppShell({ ws, children }: { ws: WorkspaceId; children: ReactNod
   const pathname = usePathname();
   const [warning, setWarning] = useState<string | null>(null);
   const [converting, setConverting] = useState(false);
+  const [profilesOpen, setProfilesOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const profile = useProfile(ws);
+  const nav = mounted ? cfg.nav.filter((n, i) => i === 0 || !profile.hiddenTabs.includes(n.href) || pathname.startsWith(n.href)) : cfg.nav;
 
   useEffect(() => {
     dispatch((s) => setActiveWorkspace(s, ws));
@@ -63,7 +70,17 @@ export function AppShell({ ws, children }: { ws: WorkspaceId; children: ReactNod
           <div className="h-8 w-1.5 rounded-full bg-accent" aria-hidden />
           <div className="min-w-0 flex-1">
             <p className="truncate text-base font-extrabold leading-tight">{cfg.name}</p>
-            <SaveIndicator />
+            <button
+              type="button"
+              onClick={() => setProfilesOpen(true)}
+              className="flex max-w-full items-center gap-1 text-left"
+              aria-label={mounted ? `Profile: ${profile.name}. Change profile` : "Profiles"}
+            >
+              {mounted && (
+                <span className="shrink-0 rounded-full bg-accent px-2 py-0.5 text-[11px] font-bold text-accent-ink">👤 {profile.name} ▾</span>
+              )}
+              <SaveIndicator />
+            </button>
           </div>
           <button
             type="button"
@@ -88,6 +105,7 @@ export function AppShell({ ws, children }: { ws: WorkspaceId; children: ReactNod
       <main className="print-full mx-auto max-w-3xl px-4 pb-28 pt-4">
         <Hydrated>
           <ConverterSheet open={converting} onClose={() => setConverting(false)} />
+          <ProfileSheet ws={ws} open={profilesOpen} onClose={() => setProfilesOpen(false)} />
           {warning && (
             <div className="mb-3">
               <Banner tone="danger">{warning}</Banner>
@@ -99,7 +117,7 @@ export function AppShell({ ws, children }: { ws: WorkspaceId; children: ReactNod
 
       <nav aria-label={`${cfg.name} navigation`} className="no-print safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface shadow-[0_-2px_8px_rgba(0,0,0,0.06)]">
         <ul className="mx-auto flex max-w-3xl">
-          {cfg.nav.map((item) => {
+          {nav.map((item) => {
             const active = isActive(item.href);
             return (
               <li key={item.href} className="flex-1">

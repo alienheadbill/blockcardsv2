@@ -40,6 +40,16 @@ const recipe = z.looseObject({
 });
 const inventory = z.looseObject({ id: z.string(), name: z.string(), qty: z.number(), unit: z.string(), par: z.number() });
 const common = {
+  profiles: arr(
+    z.looseObject({
+      id: z.string(),
+      name: z.string(),
+      meals: arr(meal),
+      defaultMeal: z.union([meal, z.literal("auto")]),
+      hiddenTabs: arr(z.string()),
+    }),
+  ),
+  activeProfileId: z.string().nullable(),
   prep: arr(prepTask),
   templates: arr(z.looseObject({ id: z.string(), name: z.string(), tasks: arr(z.looseObject({ title: z.string() })) })),
   dismissedSuggestions: arr(z.string()),

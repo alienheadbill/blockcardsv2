@@ -12,6 +12,7 @@ import { reviseRecipe, type Recipe } from "../recipes/recipes";
 import { convert, dimensionOf } from "../recipes/units";
 import * as R from "../requests";
 import type { WorkspaceId } from "../workspaces";
+import { EVERYTHING, validateProfile, type Profile } from "../profiles";
 import { updateWorkspace, type AppState, type InventoryItem, type ShoppingItem, type Ticket, type TicketStatus, type TruckMenuItem } from "./model";
 
 // ───────────────────────── workspace ─────────────────────────
@@ -301,6 +302,14 @@ export function toggleShopping(state: AppState, ws: WorkspaceId, id: string): Ap
   return updateWorkspace(state, ws, (d) => ({ ...d, shopping: d.shopping.map((s) => (s.id === id ? { ...s, done: !s.done } : s)) }));
 }
 
+export function deleteShopping(state: AppState, ws: WorkspaceId, id: string): AppState {
+  return updateWorkspace(state, ws, (d) => ({ ...d, shopping: d.shopping.filter((s) => s.id !== id) }));
+}
+
+export function clearAllShopping(state: AppState, ws: WorkspaceId): AppState {
+  return updateWorkspace(state, ws, (d) => ({ ...d, shopping: [] }));
+}
+
 export function clearDoneShopping(state: AppState, ws: WorkspaceId): AppState {
   return updateWorkspace(state, ws, (d) => ({ ...d, shopping: d.shopping.filter((s) => !s.done) }));
 }
@@ -407,4 +416,31 @@ export function saveConversion(state: AppState, name: string, volume: { qty: num
 
 export function deleteConversion(state: AppState, id: string): AppState {
   return { ...state, conversions: state.conversions.filter((c) => c.id !== id) };
+}
+
+// ───────────────────────── profiles (any workspace) ─────────────────────────
+
+export function activeProfile(state: AppState, ws: WorkspaceId): Profile {
+  const d = state.workspaces[ws];
+  return d.profiles?.find((p) => p.id === d.activeProfileId) ?? d.profiles?.[0] ?? EVERYTHING;
+}
+
+export function setActiveProfile(state: AppState, ws: WorkspaceId, id: string): AppState {
+  if (!state.workspaces[ws].profiles.some((p) => p.id === id)) throw new Error("Profile not found");
+  return updateWorkspace(state, ws, (d) => ({ ...d, activeProfileId: id }));
+}
+
+export function saveProfile(state: AppState, ws: WorkspaceId, profile: Profile): AppState {
+  const clean = validateProfile(profile);
+  return updateWorkspace(state, ws, (d) => {
+    const exists = d.profiles.some((p) => p.id === clean.id);
+    return { ...d, profiles: exists ? d.profiles.map((p) => (p.id === clean.id ? clean : p)) : [...d.profiles, clean] };
+  });
+}
+
+export function deleteProfile(state: AppState, ws: WorkspaceId, id: string): AppState {
+  const d = state.workspaces[ws];
+  if (d.profiles.length <= 1) throw new Error("Keep at least one profile");
+  const profiles = d.profiles.filter((p) => p.id !== id);
+  return updateWorkspace(state, ws, (x) => ({ ...x, profiles, activeProfileId: x.activeProfileId === id ? profiles[0]!.id : x.activeProfileId }));
 }

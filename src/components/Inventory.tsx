@@ -5,6 +5,7 @@ import type { InventoryItem } from "@/lib/state/model";
 import * as ops from "@/lib/state/ops";
 import { getState, replaceState, resetDemo, useAppState } from "@/lib/state/store";
 import { WORKSPACES, type WorkspaceId } from "@/lib/workspaces";
+import { Icon } from "./Icon";
 import { act, Badge, Banner, Button, Card, downloadFile, Empty, Field, inputCls, Sheet, toast } from "./ui";
 
 export function InventoryList({ ws, title = "Inventory", showCost = false }: { ws: WorkspaceId; title?: string; showCost?: boolean }) {
@@ -153,15 +154,33 @@ export function ShoppingList({ ws, title = "Shopping list" }: { ws: WorkspaceId;
                 <span className={`flex-1 text-base ${i.done ? "text-muted line-through" : "font-semibold"}`}>{i.name}</span>
                 {i.qty && <span className="text-sm text-muted">{i.qty}</span>}
                 {i.source !== "manual" && <Badge>{i.source === "inventory" ? "restock" : "plan"}</Badge>}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    act((s) => ops.deleteShopping(s, ws, i.id));
+                  }}
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted hover:bg-surface-2 hover:text-danger"
+                  aria-label={`Delete ${i.name}`}
+                >
+                  <Icon name="trash" className="h-5 w-5" />
+                </button>
               </label>
             </li>
           ))}
         </ul>
       )}
-      {done.length > 0 && (
-        <Button size="sm" variant="ghost" className="mt-2" onClick={() => act((s) => ops.clearDoneShopping(s, ws))}>
-          Clear {done.length} checked
-        </Button>
+      {items.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {done.length > 0 && (
+            <Button size="sm" variant="ghost" onClick={() => act((s) => ops.clearDoneShopping(s, ws))}>
+              Delete {done.length} checked
+            </Button>
+          )}
+          <Button size="sm" variant="ghost" className="text-danger" onClick={() => window.confirm("Delete everything on this list?") && act((s) => ops.clearAllShopping(s, ws))}>
+            Delete all
+          </Button>
+        </div>
       )}
     </Card>
   );

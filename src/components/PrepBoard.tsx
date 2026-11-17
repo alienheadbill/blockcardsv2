@@ -20,13 +20,20 @@ export function PrepBoard({
   baseDate,
   suggestions = [],
   withMeals = true,
+  meals,
 }: {
   ws: WorkspaceId;
   baseDate: ISODate;
   suggestions?: P.PrepSuggestion[];
   withMeals?: boolean;
+  /** Only show tasks for these meals (plus tasks with no meal). Others are behind a toggle. */
+  meals?: readonly MealService[];
 }) {
-  const data = useAppState((s) => s.workspaces[ws]);
+  const raw = useAppState((s) => s.workspaces[ws]);
+  const [showOther, setShowOther] = useState(false);
+  const mine = (t: P.PrepTask) => !meals || !t.meal || meals.includes(t.meal);
+  const hiddenCount = raw.prep.filter((t) => !mine(t) && t.date >= baseDate && t.date <= addDays(baseDate, 2)).length;
+  const data = useMemo(() => (showOther ? raw : { ...raw, prep: raw.prep.filter(mine) }), [raw, showOther, meals]); // eslint-disable-line react-hooks/exhaustive-deps
   const [editing, setEditing] = useState<P.PrepTask | "new" | null>(null);
   const [newDate, setNewDate] = useState(baseDate);
   const pending = useMemo(() => P.pendingSuggestions(suggestions, data.prep, data.dismissedSuggestions), [suggestions, data.prep, data.dismissedSuggestions]);
@@ -84,6 +91,12 @@ export function PrepBoard({
           </Card>
         );
       })}
+
+      {(hiddenCount > 0 || showOther) && meals && (
+        <button type="button" className="text-sm font-semibold text-primary underline" onClick={() => setShowOther((v) => !v)}>
+          {showOther ? "Show only my meals" : `Show ${hiddenCount} task(s) for other meals`}
+        </button>
+      )}
 
       <Templates ws={ws} date={baseDate} withMeals={withMeals} />
 

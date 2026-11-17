@@ -94,5 +94,5 @@ it("migrates v3 data by adding an empty conversions list", () => {
   const v3 = JSON.parse(JSON.stringify(initialState()));
   v3.schemaVersion = 3;
   delete v3.conversions;
-  expect(migrate(v3)).toMatchObject({ schemaVersion: 4, conversions: [] });
+  expect(migrate(v3)).toMatchObject({ schemaVersion: 5, conversions: [] });
 });

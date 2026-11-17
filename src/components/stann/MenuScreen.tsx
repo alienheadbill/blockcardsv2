@@ -9,6 +9,7 @@ import { useAppState } from "@/lib/state/store";
 import { DateBar, useDateMeal } from "../DateMealBar";
 import { Icon } from "../Icon";
 import { MenuList, positionLabel } from "../MenuList";
+import { useProfile } from "../useProfile";
 import { act, Badge, Banner, Button, Card, csv, downloadFile, Field, inputCls, Sheet } from "../ui";
 
 export function MenuScreen() {
@@ -22,6 +23,10 @@ export function MenuScreen() {
   const [week, setWeek] = useState<number>(todayPos?.week ?? 1);
   const flagged = useMemo(() => flaggedItems(season, d.corrections), [season, d.corrections]);
   const days = useMemo(() => [0, 1, 2].map((i) => addDays(date, i)), [date]);
+  const profile = useProfile("stann");
+  const [allMeals, setAllMeals] = useState(false);
+  const shownMeals = allMeals ? MEAL_SERVICES : MEAL_SERVICES.filter((m) => profile.meals.includes(m));
+  const hiddenMeals = MEAL_SERVICES.length - profile.meals.length;
 
   const exportCsv = () => {
     const rows: (string | number)[][] = [["Season", "Week", "Day", "Meal", "Type", "Printed label", "Item", "Review note"]];
@@ -37,11 +42,16 @@ export function MenuScreen() {
       <div className="no-print space-y-3">
         <DateBar date={date} onChange={(x) => set({ date: x })} subtitle={todayPos ? `Week ${todayPos.week} · ${todayPos.dayName}` : "Rotation not set"} />
 
+        {hiddenMeals > 0 && (
+          <button type="button" className="text-sm font-semibold text-primary underline" onClick={() => setAllMeals((v) => !v)}>
+            {allMeals ? `Show only ${profile.name.toLowerCase()} meals` : "Show all meals"}
+          </button>
+        )}
         {days.map((day, i) => (
           <Card key={day} title={<span>{i === 0 ? "Selected day" : i === 1 ? "Next day" : "Two days ahead"} <span className="text-sm font-semibold text-muted">· {formatLong(day)}</span></span>}>
             <p className="-mt-2 mb-2 text-sm font-semibold text-muted">{positionLabel(ops.mealFor(state, day, "breakfast"))}</p>
             <div className="space-y-3">
-              {MEAL_SERVICES.map((m) => {
+              {shownMeals.map((m) => {
                 const r = ops.mealFor(state, day, m);
                 return (
                   <div key={m} className="rounded-xl border border-line p-3">

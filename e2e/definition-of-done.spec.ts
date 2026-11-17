@@ -96,6 +96,10 @@ test("first-release checklist", async ({ page }, testInfo) => {
   await page.goto(`/stann/menu?date=${DATE}`);
   const nextDay = page.locator("section", { hasText: "Next day" }).first();
   await expect(nextDay.getByText("Week 2 · Tuesday")).toBeVisible();
+  await expect(nextDay.getByText("Turkey Dinner Sandwich")).toBeVisible();
+  // Night cook profile hides lunch until asked
+  await expect(nextDay.getByText("Sage Garlic Boneless Chicken Thigh, Peas, Buttered Orzo")).toHaveCount(0);
+  await page.getByRole("button", { name: "Show all meals" }).click();
   await expect(nextDay.getByText("Sage Garlic Boneless Chicken Thigh, Peas, Buttered Orzo")).toBeVisible();
 
   // 10. Switch workspaces without carrying data over
@@ -145,4 +149,45 @@ test("a workspace backup can't be restored into another workspace", async ({ pag
   await page.goto("/home/pantry");
   await page.getByTestId("restore-input").setInputFiles(file);
   await expect(page.getByText(/belongs to the truck workspace/)).toBeVisible();
+});
+
+test("profiles change what each cook sees", async ({ page }) => {
+  await page.goto("/stann/counts?date=2026-11-16");
+  // Night cook: dinner only, other meals one tap away
+  await expect(page.getByRole("button", { name: "Profile: Night cook. Change profile" })).toBeVisible();
+  const tabs = page.getByRole("tablist", { name: "Meal service" });
+  await expect(tabs.getByRole("tab")).toHaveText(["Dinner"]);
+  await page.getByRole("button", { name: "Other meals" }).click();
+  await expect(tabs.getByRole("tab")).toHaveText(["Breakfast", "Lunch", "Dinner"]);
+
+  // Switch to Day cook
+  await page.getByRole("button", { name: /^Profile: / }).click();
+  await page.getByRole("radio", { name: /Day cook/ }).click();
+  await page.goto("/stann/counts?date=2026-11-16&meal=lunch");
+  await expect(tabs.getByRole("tab")).toHaveText(["Breakfast", "Lunch"]);
+
+  // Make a custom profile that hides the Reports tab
+  await page.getByRole("button", { name: /^Profile: / }).click();
+  await page.getByRole("button", { name: "+ New profile" }).click();
+  await page.getByRole("button", { name: /^Night cook/ }).click();
+  await page.getByRole("textbox", { name: "Name" }).fill("Bill");
+  await page.getByRole("checkbox", { name: "Lunch" }).check();
+  await page.getByRole("checkbox", { name: "Reports" }).uncheck();
+  await page.getByRole("button", { name: "Create & use" }).click();
+  await expect(page.getByRole("button", { name: "Profile: Bill. Change profile" })).toBeVisible();
+  const nav = page.getByRole("navigation", { name: /St\. Ann/ });
+  await expect(nav.getByRole("link", { name: "Reports" })).toHaveCount(0);
+  await page.goto("/stann/counts?date=2026-11-16&meal=dinner");
+  await expect(tabs.getByRole("tab")).toHaveText(["Lunch", "Dinner"]);
+});
+
+test("shopping list items can be deleted", async ({ page }) => {
+  await page.goto("/home/shopping");
+  for (const item of ["Milk", "Eggs"]) {
+    await page.getByRole("textbox", { name: "Item" }).fill(item);
+    await page.getByRole("button", { name: "Add", exact: true }).click();
+  }
+  await page.getByRole("button", { name: "Delete Milk" }).click();
+  await expect(page.getByText("Milk")).toHaveCount(0);
+  await expect(page.getByText("Eggs")).toBeVisible();
 });

@@ -12,9 +12,10 @@ import type { PrepTask, PrepTemplate } from "../prep";
 import { makeRecipe, starterRecipes, type Recipe } from "../recipes/recipes";
 import type { SpecialRequest, StandingRequest } from "../requests";
 import type { CustomConversion } from "../recipes/convert";
+import { defaultProfiles, PROFILE_PRESETS, profileFromPreset, type Profile } from "../profiles";
 import type { WorkspaceId } from "../workspaces";
 
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 export interface AuditEvent {
   id: string;
@@ -42,6 +43,9 @@ export interface ShoppingItem {
 }
 
 interface Common {
+  /** Who's using this workspace on this device, and what they see. */
+  profiles: Profile[];
+  activeProfileId: string | null;
   prep: PrepTask[];
   templates: PrepTemplate[];
   dismissedSuggestions: string[];
@@ -130,8 +134,8 @@ export const CONFIRMED_ANCHOR_NOTE =
 
 export type WorkspaceData<W extends WorkspaceId> = AppState["workspaces"][W];
 
-function common(recipes: Recipe[] = []): Common {
-  return { prep: [], templates: [], dismissedSuggestions: [], recipes, inventory: [], shopping: [], audit: [] };
+function common(ws: WorkspaceId, recipes: Recipe[] = []): Common {
+  return { ...defaultProfiles(ws), prep: [], templates: [], dismissedSuggestions: [], recipes, inventory: [], shopping: [], audit: [] };
 }
 
 function inv(name: string, qty: number, unit: string, par: number, unitCost: number | null = null): InventoryItem {
@@ -166,7 +170,7 @@ export function initialState(): AppState {
   const truckBurger = truckRecipes[0]!;
 
   const truck: TruckData = {
-    ...common(truckRecipes),
+    ...common("truck", truckRecipes),
     menu: [
       { id: newId("tm"), name: "Smash Burger", price: 9, recipeId: truckBurger.id, active: true },
       { id: newId("tm"), name: "Chicken Cheesesteak", price: 11, active: true },
@@ -184,13 +188,13 @@ export function initialState(): AppState {
   };
 
   const home: HomeData = {
-    ...common(starterRecipes().filter((r) => /Macaroni|Chicken Noodle/.test(r.name)).map((r) => ({ ...r, source: "user" as const }))),
+    ...common("home", starterRecipes().filter((r) => /Macaroni|Chicken Noodle/.test(r.name)).map((r) => ({ ...r, source: "user" as const }))),
     mealPlan: {},
     inventory: [inv("Rice", 2, "lb", 1), inv("Pasta", 1, "lb", 2), inv("Eggs", 6, "each", 12), inv("Milk", 0.5, "gal", 1)],
   };
 
   const stann: StAnnData = {
-    ...common(starterRecipes()),
+    ...common("stann", starterRecipes()),
     settings: { ...DEFAULT_STANN_SETTINGS, units: [] },
     rotation: { seasonId: "fall-winter", week1Start: "2026-11-08", confirmed: true, note: CONFIRMED_ANCHOR_NOTE },
     corrections: {},
@@ -281,6 +285,20 @@ export function migrate(raw: any): any {
   if (raw.schemaVersion === 3) {
     raw.conversions ??= [];
     raw.schemaVersion = 4;
+  }
+  if (raw.schemaVersion === 4) {
+    for (const ws of ["stann", "truck", "home"] as const) {
+      const data = raw.workspaces?.[ws];
+      if (!data || Array.isArray(data.profiles)) continue;
+      const profiles = PROFILE_PRESETS[ws].map((p) => profileFromPreset(p));
+      // St. Ann: the night (dinner) cook is this app's main user; keep their saved "opens on" choice.
+      if (ws === "stann" && data.settings?.defaultMeal && data.settings.defaultMeal !== "dinner") {
+        const all = profiles.find((p) => p.presetId === "all")!;
+        data.activeProfileId = all.id;
+      } else data.activeProfileId = profiles[0]!.id;
+      data.profiles = profiles;
+    }
+    raw.schemaVersion = 5;
   }
   return raw;
 }

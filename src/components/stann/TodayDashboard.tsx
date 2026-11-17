@@ -10,15 +10,16 @@ import type { AppState } from "@/lib/state/model";
 import * as ops from "@/lib/state/ops";
 import { useAppState } from "@/lib/state/store";
 import { positionLabel } from "../MenuList";
+import { useProfile } from "../useProfile";
 import { Badge, Banner, Card } from "../ui";
 
 /** Suggestions for [from, from+span) including day-ahead pulls for the day after. */
-export function menuSuggestions(state: AppState, from: ISODate, span = 3): P.PrepSuggestion[] {
+export function menuSuggestions(state: AppState, from: ISODate, span = 3, meals: readonly MealService[] = MEAL_SERVICES): P.PrepSuggestion[] {
   const out: P.PrepSuggestion[] = [];
   const last = addDays(from, span - 1);
   for (let i = 0; i <= span; i++) {
     const d = addDays(from, i);
-    for (const m of MEAL_SERVICES) {
+    for (const m of meals) {
       const r = ops.mealFor(state, d, m);
       for (const s of P.suggestForMeal(d, m, r.items)) if (s.date >= from && s.date <= last) out.push(s);
     }
@@ -26,17 +27,19 @@ export function menuSuggestions(state: AppState, from: ISODate, span = 3): P.Pre
   return out;
 }
 
-function nextService(servingTimes: Record<MealService, string>, now = new Date()): MealService | null {
+function nextService(servingTimes: Record<MealService, string>, meals: readonly MealService[], now = new Date()): MealService | null {
   const hhmm = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-  return MEAL_SERVICES.find((m) => servingTimes[m] >= hhmm) ?? null;
+  return meals.find((m) => servingTimes[m] >= hhmm) ?? null;
 }
 
 export function TodayDashboard() {
   const state = useAppState((s) => s);
   const d = state.workspaces.stann;
   const today = localToday();
-  const upcoming = nextService(d.settings.servingTimes);
-  const suggestions = useMemo(() => menuSuggestions(state, today), [state, today]);
+  const profile = useProfile("stann");
+  const meals = profile.meals;
+  const upcoming = nextService(d.settings.servingTimes, meals);
+  const suggestions = useMemo(() => menuSuggestions(state, today, 3, meals), [state, today, meals]);
   const pendingSugg = useMemo(() => P.pendingSuggestions(suggestions, d.prep, d.dismissedSuggestions), [suggestions, d.prep, d.dismissedSuggestions]);
 
   return (
@@ -59,9 +62,9 @@ export function TodayDashboard() {
         )
       )}
 
-      <DayCard state={state} date={today} label="Today" upcoming={upcoming} highlight />
-      <DayCard state={state} date={addDays(today, 1)} label="Tomorrow" aheadSuggestions={pendingSugg.filter((s) => s.date === today && s.key.endsWith("|thaw"))} />
-      <DayCard state={state} date={addDays(today, 2)} label="Two Days Ahead" />
+      <DayCard mealList={meals} state={state} date={today} label="Today" upcoming={upcoming} highlight />
+      <DayCard mealList={meals} state={state} date={addDays(today, 1)} label="Tomorrow" aheadSuggestions={pendingSugg.filter((s) => s.date === today && s.key.endsWith("|thaw"))} />
+      <DayCard mealList={meals} state={state} date={addDays(today, 2)} label="Two Days Ahead" />
     </div>
   );
 }
@@ -73,7 +76,9 @@ function DayCard({
   upcoming,
   highlight,
   aheadSuggestions,
+  mealList,
 }: {
+  mealList: readonly MealService[];
   state: AppState;
   date: ISODate;
   label: string;
@@ -82,10 +87,10 @@ function DayCard({
   aheadSuggestions?: P.PrepSuggestion[];
 }) {
   const d = state.workspaces.stann;
-  const meals = MEAL_SERVICES.map((m) => ({ meal: m, r: ops.mealFor(state, date, m), session: d.counts[C.sessionKey(date, m)] }));
-  const prep = d.prep.filter((t) => t.date === date);
+  const meals = mealList.map((m) => ({ meal: m, r: ops.mealFor(state, date, m), session: d.counts[C.sessionKey(date, m)] }));
+  const prep = d.prep.filter((t) => t.date === date && (!t.meal || mealList.includes(t.meal)));
   const prog = P.progress(prep);
-  const reqs = d.requests.filter((r) => r.date === date && r.status !== "cancelled");
+  const reqs = d.requests.filter((r) => r.date === date && r.status !== "cancelled" && mealList.includes(r.meal));
   const attention = reqs.filter(needsAttention);
   const pos = meals[0]!.r;
 
@@ -111,7 +116,7 @@ function DayCard({
             <div className="text-xs font-semibold">{attention.length ? `${attention.length} need attention` : "requests"}</div>
           </Link>
           <div className="rounded-xl bg-surface-2 p-2">
-            <div className="text-2xl font-extrabold tabular-nums">{meals.filter((m) => m.session?.status === "complete").length}/3</div>
+            <div className="text-2xl font-extrabold tabular-nums">{meals.filter((m) => m.session?.status === "complete").length}/{meals.length}</div>
             <div className="text-xs font-semibold text-muted">counts done</div>
           </div>
         </div>

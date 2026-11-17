@@ -7,6 +7,8 @@ import { MEAL_LABELS, type MealService } from "@/lib/menu/types";
 import * as ops from "@/lib/state/ops";
 import { useAppState } from "@/lib/state/store";
 import { DateBar, MealTabs, useDateMeal } from "../DateMealBar";
+import { useProfile } from "../useProfile";
+import { pickMeal } from "@/lib/profiles";
 import { Icon } from "../Icon";
 import { MenuList, positionLabel } from "../MenuList";
 import { TallyMarks } from "../TallyMarks";
@@ -22,8 +24,8 @@ const buzz = () => {
 };
 
 export function CountScreen() {
-  const preferred = useAppState((s) => s.workspaces.stann.settings.defaultMeal ?? "dinner");
-  const { date, meal, set } = useDateMeal(preferred);
+  const profile = useProfile("stann");
+  const { date, meal, set } = useDateMeal(pickMeal(profile));
   const state = useAppState((s) => s);
   const resolved = useMemo(() => ops.mealFor(state, date, meal), [state, date, meal]);
   const session = state.workspaces.stann.counts[C.sessionKey(date, meal)];
@@ -32,7 +34,7 @@ export function CountScreen() {
   return (
     <div className="space-y-3">
       <DateBar date={date} onChange={(d) => set({ date: d })} subtitle={positionLabel(resolved)} />
-      <MealTabs meal={meal} onChange={(m) => set({ meal: m })} />
+      <MealTabs meal={meal} meals={profile.meals} onChange={(m) => set({ meal: m })} />
       {session ? (
         <ActiveCount
           session={session}

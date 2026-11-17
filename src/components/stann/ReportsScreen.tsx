@@ -7,6 +7,7 @@ import { groupRequests } from "@/lib/requests";
 
 import { useAppState } from "@/lib/state/store";
 import { DateBar, useDateMeal } from "../DateMealBar";
+import { useProfile } from "../useProfile";
 import { Icon } from "../Icon";
 import { AuditLog, BackupPanel } from "../Inventory";
 import { act, Badge, Button, Card, csv, downloadFile, Empty, Field, inputCls } from "../ui";
@@ -15,6 +16,8 @@ export function ReportsScreen() {
   const { date, set } = useDateMeal();
   const d = useAppState((s) => s.workspaces.stann);
   const week = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(date, i - 6)), [date]);
+  const profile = useProfile("stann");
+  const meals = MEAL_SERVICES.filter((m) => profile.meals.includes(m));
 
   const exportCounts = () => {
     const rows: (string | number)[][] = [["Date", "Meal", "Status", "Choice / item", "Type", "Count"]];
@@ -33,7 +36,7 @@ export function ReportsScreen() {
 
       <Card title="Production for the day" action={<Button size="sm" variant="outline" onClick={() => window.print()} aria-label="Print"><Icon name="print" className="h-5 w-5" /></Button>}>
         <div className="space-y-4">
-          {MEAL_SERVICES.map((m) => (
+          {meals.map((m) => (
             <MealProduction key={m} date={date} meal={m} />
           ))}
         </div>
@@ -44,7 +47,7 @@ export function ReportsScreen() {
           <thead>
             <tr className="text-left text-muted">
               <th className="py-1">Date</th>
-              {MEAL_SERVICES.map((m) => (
+              {meals.map((m) => (
                 <th key={m} className="py-1 text-right">
                   {MEAL_LABELS[m]}
                 </th>
@@ -55,7 +58,7 @@ export function ReportsScreen() {
             {week.map((day) => (
               <tr key={day} className="border-t border-line">
                 <td className="py-1.5 font-semibold">{formatShort(day)}</td>
-                {MEAL_SERVICES.map((m) => {
+                {meals.map((m) => {
                   const s = d.counts[C.sessionKey(day, m)];
                   return (
                     <td key={m} className="py-1.5 text-right tabular-nums">
@@ -176,16 +179,7 @@ function Settings() {
             </Field>
           ))}
         </div>
-        <Field label="Counts screen opens on">
-          <select className={inputCls} value={settings.defaultMeal ?? "dinner"} onChange={(e) => save({ defaultMeal: e.target.value as MealService | "auto" })}>
-            {MEAL_SERVICES.map((m) => (
-              <option key={m} value={m}>
-                {MEAL_LABELS[m]}
-              </option>
-            ))}
-            <option value="auto">Whichever meal is next (by time)</option>
-          </select>
-        </Field>
+        <p className="text-sm text-muted">Which meals you see and what Counts opens on are set in your profile (tap your name at the top).</p>
         <UnitsField units={settings.units ?? []} onSave={(units) => save({ units })} />
         <Field label="Default counting mode">
           <select className={inputCls} value={settings.defaultCountMode} onChange={(e) => save({ defaultCountMode: e.target.value as "quick" | "detailed" })}>

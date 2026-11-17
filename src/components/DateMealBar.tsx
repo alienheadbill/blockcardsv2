@@ -1,6 +1,6 @@
 "use client";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { addDays, formatMedium, isISODate, localToday, type ISODate } from "@/lib/dates";
 import { MEAL_LABELS, MEAL_SERVICES, type MealService } from "@/lib/menu/types";
 import { Icon } from "./Icon";
@@ -61,10 +61,19 @@ export function DateBar({ date, onChange, subtitle }: { date: ISODate; onChange:
   );
 }
 
-export function MealTabs({ meal, onChange }: { meal: MealService; onChange: (m: MealService) => void }) {
+/**
+ * Meal tabs. `meals` = the meals this profile works; the others are tucked
+ * behind "Other meals" so a night cook can still reach lunch in one tap.
+ */
+export function MealTabs({ meal, onChange, meals = [...MEAL_SERVICES] }: { meal: MealService; onChange: (m: MealService) => void; meals?: MealService[] }) {
+  const [expanded, setExpanded] = useState(false);
+  const showAll = expanded || meals.length === MEAL_SERVICES.length || !meals.includes(meal);
+  const shown = showAll ? [...MEAL_SERVICES] : MEAL_SERVICES.filter((m) => meals.includes(m));
+  const hiddenCount = MEAL_SERVICES.length - meals.length;
   return (
-    <div role="tablist" aria-label="Meal service" className="grid grid-cols-3 gap-1 rounded-xl bg-surface-2 p-1">
-      {MEAL_SERVICES.map((m) => (
+    <div className="flex items-stretch gap-2">
+    <div role="tablist" aria-label="Meal service" className="grid flex-1 gap-1 rounded-xl bg-surface-2 p-1" style={{ gridTemplateColumns: `repeat(${shown.length}, minmax(0, 1fr))` }}>
+      {shown.map((m) => (
         <button
           key={m}
           type="button"
@@ -76,6 +85,20 @@ export function MealTabs({ meal, onChange }: { meal: MealService; onChange: (m: 
           {MEAL_LABELS[m]}
         </button>
       ))}
+    </div>
+    {hiddenCount > 0 && (
+      <button
+        type="button"
+        onClick={() => {
+          if (showAll && !meals.includes(meal)) onChange(meals[0]!);
+          setExpanded(!showAll);
+        }}
+        className="shrink-0 rounded-xl border-2 border-line px-3 text-sm font-semibold text-muted"
+        aria-expanded={showAll}
+      >
+        {showAll ? "My meals" : "Other meals"}
+      </button>
+    )}
     </div>
   );
 }

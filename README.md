@@ -53,6 +53,23 @@ npm run typecheck
 npm run build && npm run test:e2e   # Playwright: walks the release checklist on an iPhone-sized screen
 ```
 
+## Profiles (who's cooking)
+
+Tap the name badge under the workspace title (e.g. **👤 Night cook ▾**) to switch profiles or edit them.
+Profiles only change what you see on this phone; the kitchen's data is shared.
+
+| Workspace | Starting profiles |
+|---|---|
+| St. Ann | **Night cook** (11 AM – 7 PM, dinner only — active by default), **Day cook** (6 AM – 2 PM, breakfast & lunch), **Everything** |
+| Stop N Chop | **Owner** (all tabs), **Line cook** (orders, prep, recipes) |
+| Home | **Me** |
+
+Each profile sets the meals you work, which meal Counts opens on, and which bottom tabs show. Meals you
+don't work are hidden on Today, Counts, Prep, Menu and Reports, but always one tap away
+("Other meals" / "Show all meals") — e.g. for trayed sausage or a lunch dessert.
+
+These are not password-protected logins; real staff accounts need the server version (see the security checklist).
+
 ## Counting a stack of slips
 
 1. **Counts** opens on Dinner. The tally boxes are pre-written from the menu ("Vegetable Frittata",
