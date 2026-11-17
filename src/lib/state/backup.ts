@@ -68,6 +68,10 @@ export const workspaceSchemas = {
     menuHistory: arr(z.looseObject({ id: z.string(), itemId: z.string() })),
     overrides: z.record(z.string(), z.looseObject({ items: arr(menuItem), reason: z.string() })),
     counts: z.record(z.string(), countSession),
+    production: z.record(z.string(), z.looseObject({ lines: arr(z.looseObject({ id: z.string(), label: z.string(), bufferPct: z.number() })), dismissed: arr(z.string()) })),
+    productionDefaults: z.record(z.string(), z.looseObject({ bufferPct: z.number() })),
+    readiness: z.record(z.string(), z.looseObject({ checked: z.record(z.string(), z.string()) })),
+    temps: arr(z.looseObject({ id: z.string(), date: iso, meal, item: z.string(), kind: z.string(), tempF: z.number().min(-40).max(500) })),
     standingRequests: arr(z.looseObject({ id: z.string(), meal, identifier: z.string(), item: z.string(), active: z.boolean() })),
     requests: arr(
       z.looseObject({

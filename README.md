@@ -70,6 +70,21 @@ don't work are hidden on Today, Counts, Prep, Menu and Reports, but always one t
 
 These are not password-protected logins; real staff accounts need the server version (see the security checklist).
 
+## St. Ann's: from menu to service
+
+**Today** shows your current service (from your profile and the serving times in Reports → Kitchen settings)
+as four steps — **Count → Production → Prep → Ready** — each marked done / needs attention / to do, plus a
+"needs attention" list and what's coming up. The same step bar sits on top of each of those screens.
+
+- **Production** turns the finished count into amounts: servings × portion size (+ optional extra %), the raw
+  amount to start with if you enter a cooked yield %, and how far to scale a linked recipe (portions and full
+  batches). Bold amounts are rounded **up** to something measurable; the exact number is shown beside them.
+  Portion sizes are remembered per dish. Changing servings or the final amount needs a reason and is logged.
+  **Send to prep list** adds one prep task per item with its quantities.
+- **Ready** has an editable service checklist and a temperature log. Temperature limits are blank until you
+  enter your facility's approved limits (FDA Food Code reference values can be filled in, but you must confirm
+  them). The app reports whether a reading is inside your limits; it never declares food safe.
+
 ## Counting a stack of slips
 
 1. **Counts** opens on Dinner. The tally boxes are pre-written from the menu ("Vegetable Frittata",

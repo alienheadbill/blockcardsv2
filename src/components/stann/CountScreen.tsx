@@ -14,6 +14,7 @@ import { MenuList, positionLabel } from "../MenuList";
 import { TallyMarks } from "../TallyMarks";
 import { act, Badge, Banner, Button, Card, Field, inputCls, Sheet, toast } from "../ui";
 import { PromptSheet, RequestsPanel } from "./RequestsPanel";
+import { ServiceFlow } from "./ServiceFlow";
 
 /** Short vibration on supported phones (Android). iPhone Safari has no vibration API, so this is a no-op there. */
 const vibrate = () => {
@@ -36,6 +37,7 @@ export function CountScreen() {
     <div className="space-y-3">
       <DateBar date={date} onChange={(d) => set({ date: d })} subtitle={positionLabel(resolved)} />
       <MealTabs meal={meal} meals={profile.meals} onChange={(m) => set({ meal: m })} />
+      {!(state.workspaces.stann.settings.compactCounting && session) && <ServiceFlow date={date} meal={meal} current="count" />}
       {session ? (
         <ActiveCount
           session={session}
@@ -244,6 +246,9 @@ function ActiveCount({
       {locked ? (
         <Banner tone="info">
           This count was reviewed and marked complete. Taps are locked.{" "}
+          <Link href={`/stann/production?date=${date}&meal=${meal}`} className="font-bold underline">
+            Next: work out production →
+          </Link>{" "}
           <button type="button" className="font-bold underline" onClick={() => setReopenOpen(true)}>
             Reopen with a reason
           </button>
@@ -333,7 +338,7 @@ function ActiveCount({
             disabled={locked}
             onClick={() => tap(o.key)}
             aria-label={`Count one ${o.label}. Now ${summary.byChoice[o.key] ?? 0}.`}
-            className={`paper flex h-full w-full flex-col rounded-2xl border-2 border-ink/70 p-3 pt-4 text-left shadow-sm transition active:scale-[0.97] active:bg-accent-soft disabled:opacity-70 ${compact ? "min-h-32" : "min-h-44"}`}
+            className={`paper flex h-full w-full flex-col rounded-2xl border-2 border-ink/70 p-3 pt-4 text-left shadow-sm transition active:scale-[0.97] active:bg-accent-soft disabled:opacity-70 ${compact ? "min-h-28" : "min-h-44"}`}
           >
             <span className="line-clamp-3 border-b-2 border-ink/60 pb-1 pr-8 font-[family-name:var(--font-hand)] text-lg font-bold leading-snug">{o.label}</span>
             <span className="mt-2 flex-1">{showTally && !compact && <TallyMarks count={summary.byChoice[o.key] ?? 0} />}</span>

@@ -130,11 +130,19 @@ function TaskList({ tasks, ws, onEdit, showDate }: { tasks: P.PrepTask[]; ws: Wo
                 {t.startTime && <Badge tone="accent">⏱ {t.startTime}</Badge>}
                 {t.meal && <Badge>{MEAL_LABELS[t.meal]}</Badge>}
                 {t.source === "suggested" && <Badge>suggested</Badge>}
-                {recipe && <Badge tone="ok">📖 {recipe.name}</Badge>}
               </span>
               {t.holdingReminder && <span className="mt-0.5 block text-xs text-muted">🧊 {t.holdingReminder}</span>}
               {t.notes && <span className="mt-0.5 block text-sm text-muted">{t.notes}</span>}
             </button>
+            {recipe && (
+              <Link
+                href={`${WORKSPACES[ws].nav.find((n) => n.label === "Recipes")?.href ?? "/"}?r=${recipe.id}`}
+                className="flex min-h-11 shrink-0 items-center rounded-xl border border-ok/40 bg-ok-soft px-2 text-xs font-bold text-ok"
+                aria-label={`Open recipe: ${recipe.name}`}
+              >
+                📖 Recipe
+              </Link>
+            )}
           </li>
         );
       })}

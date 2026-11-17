@@ -9,7 +9,7 @@ year of dinner counts to measure storage growth; inspection of the production CS
 Severity: **Critical** (data loss / safety) · **High** (breaks a core workflow or will fail in normal use) ·
 **Medium** (noticeable problem with a workaround) · **Low** (polish).
 
-Status column is updated as fixes land (see `IMPROVEMENT_ROADMAP.md`).
+Status column is updated as fixes land (see `IMPROVEMENT_ROADMAP.md`). All "Fixed" items are covered by the tests listed in `TEST_RESULTS.md`.
 
 ## What exists today (inventory)
 

@@ -12,10 +12,12 @@ import type { PrepTask, PrepTemplate } from "../prep";
 import { makeRecipe, starterRecipes, type Recipe } from "../recipes/recipes";
 import type { SpecialRequest, StandingRequest } from "../requests";
 import type { CustomConversion } from "../recipes/convert";
+import type { ProductionDefault, ProductionPlan } from "../production";
+import { DEFAULT_CHECKLIST, NO_RULES, type ChecklistItem, type ReadinessRecord, type TempEntry, type TempRules } from "../readiness";
 import { defaultProfiles, PROFILE_PRESETS, profileFromPreset, type Profile } from "../profiles";
 import type { WorkspaceId } from "../workspaces";
 
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 
 export interface AuditEvent {
   id: string;
@@ -75,6 +77,12 @@ export interface StAnnData extends Common {
     tapGuardMs?: number;
     /** Keep tap-by-tap logs of completed counts this many days, then keep totals + corrections only (0 = forever). */
     keepTapLogDays?: number;
+    /** Service readiness checklist items. */
+    checklist: ChecklistItem[];
+    /** Temperature limits, as approved by the facility. All blank until someone sets them. */
+    tempRules: TempRules;
+    /** When someone confirmed the limits match the facility's approved procedures. */
+    tempRulesConfirmed: { at: string; note: string } | null;
   };
   rotation: RotationConfig;
   corrections: Record<string, MenuCorrection>;
@@ -83,6 +91,13 @@ export interface StAnnData extends Common {
   counts: Record<string, CountSession>;
   requests: SpecialRequest[];
   standingRequests: StandingRequest[];
+  /** Production plan per service (key = date|meal). */
+  production: Record<string, ProductionPlan>;
+  /** Last-used portion / yield / buffer / recipe per dish name. */
+  productionDefaults: Record<string, ProductionDefault>;
+  /** Checklist state per service (key = date|meal). */
+  readiness: Record<string, ReadinessRecord>;
+  temps: TempEntry[];
 }
 
 export interface TruckMenuItem {
@@ -139,6 +154,9 @@ export const DEFAULT_STANN_SETTINGS: StAnnData["settings"] = {
   compactCounting: false,
   tapGuardMs: 300,
   keepTapLogDays: 120,
+  checklist: DEFAULT_CHECKLIST,
+  tempRules: NO_RULES,
+  tempRulesConfirmed: null,
 };
 
 export const CONFIRMED_ANCHOR_NOTE =
@@ -215,6 +233,10 @@ export function initialState(): AppState {
     counts: {},
     requests: [],
     standingRequests: [],
+    production: {},
+    productionDefaults: {},
+    readiness: {},
+    temps: [],
     templates: [
       {
         id: newId("tpl"),
@@ -311,6 +333,20 @@ export function migrate(raw: any): any {
       data.profiles = profiles;
     }
     raw.schemaVersion = 5;
+  }
+  if (raw.schemaVersion === 5) {
+    const st = raw.workspaces?.stann;
+    if (st) {
+      st.production ??= {};
+      st.productionDefaults ??= {};
+      st.readiness ??= {};
+      st.temps ??= [];
+      st.settings = { ...st.settings };
+      st.settings.checklist ??= DEFAULT_CHECKLIST;
+      st.settings.tempRules ??= NO_RULES;
+      st.settings.tempRulesConfirmed ??= null;
+    }
+    raw.schemaVersion = 6;
   }
   return raw;
 }

@@ -20,7 +20,7 @@ test("first-release checklist", async ({ page }, testInfo) => {
   await page.goto("/");
   await page.getByRole("link", { name: /St\. Ann Rehabilitation/ }).click();
   await expect(page).toHaveURL(/\/stann\/?$/);
-  await expect(page.getByRole("region", { name: "Today" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Dinner service" })).toBeVisible();
 
   // 3. View a selected date and meal menu
   await page.goto(COUNTS);

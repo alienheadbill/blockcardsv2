@@ -11,6 +11,8 @@ import * as P from "../prep";
 import { reviseRecipe, type Recipe } from "../recipes/recipes";
 import { convert, dimensionOf } from "../recipes/units";
 import * as R from "../requests";
+import * as PR from "../production";
+import * as RD from "../readiness";
 import type { WorkspaceId } from "../workspaces";
 import { EVERYTHING, validateProfile, type Profile } from "../profiles";
 import { updateWorkspace, type AppState, type InventoryItem, type ShoppingItem, type Ticket, type TicketStatus, type TruckMenuItem } from "./model";
@@ -468,4 +470,269 @@ export function archiveOldCounts(state: AppState, today: ISODate, keepDays: numb
     action: "count.archive",
     detail: `${changed} completed count(s) older than ${keepDays} days slimmed to totals + corrections`,
   });
+}
+
+// ───────────────────────── production (St. Ann) ─────────────────────────
+
+/** Everything the production calculator needs for one service. */
+export function productionContext(state: AppState, date: ISODate, meal: MealService) {
+  const d = state.workspaces.stann;
+  const session = d.counts[C.sessionKey(date, meal)];
+  const summary = session ? C.summarize(session) : null;
+  const requests = R.groupRequests(d.requests.filter((r) => r.date === date && r.meal === meal));
+  const boxes = session ? session.options.filter((o) => o.role === "main" || o.role === "alt").map((o) => ({ key: o.key, label: o.label })) : [];
+  const ctx: PR.LineContext = { byChoice: summary?.byChoice ?? {}, items: summary?.items ?? {}, requests, recipes: d.recipes };
+  const plan = d.production?.[C.sessionKey(date, meal)];
+  return { session, summary, requests, boxes, ctx, plan };
+}
+
+/** Create or refresh the plan so every tally box and request group has a line. */
+export function ensurePlan(state: AppState, date: ISODate, meal: MealService): AppState {
+  const { session, requests, boxes, plan } = productionContext(state, date, meal);
+  if (!session) return state;
+  const key = C.sessionKey(date, meal);
+  const synced = PR.syncPlan(plan ?? PR.emptyPlan(), boxes, requests, state.workspaces.stann.productionDefaults ?? {});
+  if (synced === plan) return state;
+  return updateWorkspace(state, "stann", (d) => ({ ...d, production: { ...(d.production ?? {}), [key]: synced } }));
+}
+
+function updatePlan(state: AppState, date: ISODate, meal: MealService, fn: (p: PR.ProductionPlan) => PR.ProductionPlan, history: string): AppState {
+  const key = C.sessionKey(date, meal);
+  const cur = state.workspaces.stann.production?.[key];
+  if (!cur) throw new Error("Open the production plan first");
+  const at = nowISO();
+  const next = { ...fn(cur), updatedAt: at };
+  next.history = [{ at, text: history }, ...cur.history].slice(0, 200);
+  return updateWorkspace(state, "stann", (d) => ({ ...d, production: { ...d.production, [key]: next } }), { action: "production.edit", detail: `${date} ${meal}: ${history}` });
+}
+
+/** Change portion / yield / buffer / recipe on a line. Remembered for the dish next time. */
+export function setLineSpec(
+  state: AppState,
+  date: ISODate,
+  meal: MealService,
+  lineId: string,
+  spec: { portion: PR.PortionSpec | null; yieldPct: number | null; bufferPct: number; recipeId?: string; label?: string; subtractKeys?: string[] },
+): AppState {
+  if (spec.portion && !(spec.portion.qty > 0)) throw new Error("Portion must be more than zero");
+  if (spec.yieldPct != null && !(spec.yieldPct > 0 && spec.yieldPct <= 100)) throw new Error("Cooked yield must be between 1 and 100%");
+  if (!(spec.bufferPct >= 0 && spec.bufferPct <= 100)) throw new Error("Extra must be between 0 and 100%");
+  const line = state.workspaces.stann.production?.[C.sessionKey(date, meal)]?.lines.find((l) => l.id === lineId);
+  if (!line) throw new Error("Line not found");
+  const label = (spec.label ?? line.label).trim();
+  if (!label) throw new Error("Name the line");
+  let next = updatePlan(
+    state,
+    date,
+    meal,
+    (p) => ({
+      ...p,
+      lines: p.lines.map((l) => {
+        if (l.id !== lineId) return l;
+        const { recipeId: _r, ...rest } = l;
+        return {
+          ...rest,
+          label,
+          labelEdited: l.labelEdited || label !== l.label,
+          portion: spec.portion,
+          yieldPct: spec.yieldPct,
+          bufferPct: spec.bufferPct,
+          subtractKeys: spec.subtractKeys ?? l.subtractKeys,
+          ...(spec.recipeId ? { recipeId: spec.recipeId } : {}),
+        };
+      }),
+    }),
+    `${label}: portion ${spec.portion ? `${spec.portion.qty} ${spec.portion.unit}` : "—"}, yield ${spec.yieldPct ?? "—"}%, extra ${spec.bufferPct}%`,
+  );
+  const remember: PR.ProductionDefault = { portion: spec.portion, yieldPct: spec.yieldPct, bufferPct: spec.bufferPct, ...(spec.recipeId ? { recipeId: spec.recipeId } : {}) };
+  next = updateWorkspace(next, "stann", (d) => ({ ...d, productionDefaults: { ...(d.productionDefaults ?? {}), [PR.normName(label.replace(/ \(requests\)$/, ""))]: remember } }));
+  return next;
+}
+
+export function setServingsOverride(state: AppState, date: ISODate, meal: MealService, lineId: string, value: number | null, reason: string): AppState {
+  if (value !== null) {
+    if (!Number.isInteger(value) || value < 0) throw new Error("Servings must be a whole number");
+    if (!reason.trim()) throw new Error("Say why you're changing the servings");
+  }
+  return updatePlan(
+    state,
+    date,
+    meal,
+    (p) => ({ ...p, lines: p.lines.map((l) => (l.id === lineId ? { ...l, servingsOverride: value === null ? null : { value, reason: reason.trim(), at: nowISO() } } : l)) }),
+    value === null ? "Servings back to the count" : `Servings set to ${value}: ${reason.trim()}`,
+  );
+}
+
+export function setAmountOverride(state: AppState, date: ISODate, meal: MealService, lineId: string, amount: { qty: number; unit: string } | null, reason: string): AppState {
+  if (amount) {
+    if (!(amount.qty > 0)) throw new Error("Amount must be more than zero");
+    if (!reason.trim()) throw new Error("Say why you're changing the amount");
+  }
+  return updatePlan(
+    state,
+    date,
+    meal,
+    (p) => ({
+      ...p,
+      lines: p.lines.map((l) => (l.id === lineId ? { ...l, amountOverride: amount ? { ...amount, reason: reason.trim(), at: nowISO() } : null } : l)),
+    }),
+    amount ? `Amount set to ${amount.qty} ${amount.unit}: ${reason.trim()}` : "Amount back to the calculation",
+  );
+}
+
+export function setManualServings(state: AppState, date: ISODate, meal: MealService, lineId: string, servings: number): AppState {
+  if (!Number.isInteger(servings) || servings < 0) throw new Error("Servings must be a whole number");
+  return updatePlan(state, date, meal, (p) => ({ ...p, lines: p.lines.map((l) => (l.id === lineId ? { ...l, manualServings: servings } : l)) }), `Manual servings ${servings}`);
+}
+
+export function addPlanLine(state: AppState, date: ISODate, meal: MealService, label: string, source: PR.LineSource): AppState {
+  if (!label.trim()) throw new Error("Name the line");
+  const defaults = state.workspaces.stann.productionDefaults ?? {};
+  const line = { ...PR.newLine(label, source, defaults[PR.normName(label)]), labelEdited: true };
+  return updatePlan(state, date, meal, (p) => ({ ...p, lines: [...p.lines, line] }), `Added ${label.trim()}`);
+}
+
+export function removePlanLine(state: AppState, date: ISODate, meal: MealService, lineId: string): AppState {
+  return updatePlan(
+    state,
+    date,
+    meal,
+    (p) => {
+      const line = p.lines.find((l) => l.id === lineId);
+      const sid = line ? PR.sourceId(line.source) : "";
+      return { ...p, lines: p.lines.filter((l) => l.id !== lineId), dismissed: sid && line?.source.kind !== "manual" ? [...p.dismissed, sid] : p.dismissed };
+    },
+    "Removed a line",
+  );
+}
+
+/** Add (or refresh) one prep task per production line, with quantities. Done state is never touched. */
+export function planToPrep(state: AppState, date: ISODate, meal: MealService): { state: AppState; added: number; updated: number } {
+  const { plan, ctx } = productionContext(state, date, meal);
+  if (!plan) throw new Error("No production plan yet");
+  let next = state;
+  let added = 0;
+  let updated = 0;
+  for (const line of plan.lines) {
+    const res = PR.computeLine(line, ctx);
+    if (res.servings === 0) continue;
+    const key = `prod|${date}|${meal}|${line.id}`;
+    const title = PR.lineSummary(line, res);
+    const existing = next.workspaces.stann.prep.find((t) => t.suggestionKey === key);
+    if (existing) {
+      if (existing.title !== title) {
+        next = updatePrepTask(next, "stann", existing.id, (t) => ({ ...t, title }));
+        updated++;
+      }
+    } else {
+      next = addPrepTask(next, "stann", {
+        date,
+        meal,
+        title,
+        source: "suggested",
+        suggestionKey: key,
+        holdingReminder: "Use your facility's approved hot/cold holding procedure; log temperatures on the Ready screen.",
+        ...(line.recipeId ? { recipeId: line.recipeId } : {}),
+      });
+      added++;
+    }
+  }
+  return { state: next, added, updated };
+}
+
+// ───────────────────────── readiness & temperatures (St. Ann) ─────────────────────────
+
+export function toggleChecklist(state: AppState, date: ISODate, meal: MealService, itemId: string): AppState {
+  const key = C.sessionKey(date, meal);
+  const label = state.workspaces.stann.settings.checklist.find((i) => i.id === itemId)?.label ?? itemId;
+  return updateWorkspace(
+    state,
+    "stann",
+    (d) => {
+      const rec = d.readiness?.[key] ?? { checked: {} };
+      const checked = { ...rec.checked };
+      if (checked[itemId]) delete checked[itemId];
+      else checked[itemId] = nowISO();
+      return { ...d, readiness: { ...(d.readiness ?? {}), [key]: { checked } } };
+    },
+    { action: "ready.check", detail: `${date} ${meal}: ${label}` },
+  );
+}
+
+export function setChecklist(state: AppState, labels: string[]): AppState {
+  const clean = labels.map((l) => l.trim()).filter(Boolean);
+  if (!clean.length) throw new Error("Keep at least one checklist item");
+  return updateWorkspace(state, "stann", (d) => {
+    const existing = d.settings.checklist;
+    const items = clean.map((label) => existing.find((i) => i.label === label) ?? { id: newId("ck"), label });
+    return { ...d, settings: { ...d.settings, checklist: items } };
+  }, { action: "ready.checklist", detail: `${clean.length} items` });
+}
+
+export function addTemp(state: AppState, input: Parameters<typeof RD.createTempEntry>[0]): AppState {
+  const entry = RD.createTempEntry(input);
+  const status = RD.evaluateTemp(entry.tempF, state.workspaces.stann.settings.tempRules[entry.kind]);
+  return updateWorkspace(state, "stann", (d) => ({ ...d, temps: [...(d.temps ?? []), entry] }), {
+    action: "temp.log",
+    detail: `${entry.date} ${entry.meal}: ${entry.item} ${RD.TEMP_KIND_LABELS[entry.kind]} ${entry.tempF} °F${status.kind === "below" || status.kind === "above" ? ` — ${status.text}` : ""}`,
+  });
+}
+
+export function voidTemp(state: AppState, id: string, reason: string): AppState {
+  if (!reason.trim()) throw new Error("Say why this reading is being voided");
+  const e = state.workspaces.stann.temps.find((t) => t.id === id);
+  if (!e) throw new Error("Reading not found");
+  return updateWorkspace(state, "stann", (d) => ({ ...d, temps: d.temps.map((t) => (t.id === id ? { ...t, voided: { reason: reason.trim(), at: nowISO() } } : t)) }), {
+    action: "temp.void",
+    detail: `${e.item} ${e.tempF} °F voided: ${reason.trim()}`,
+  });
+}
+
+export function setTempRules(state: AppState, rules: RD.TempRules, confirmNote: string | null): AppState {
+  for (const k of RD.TEMP_KINDS) {
+    const r = rules[k];
+    for (const v of [r.min, r.max]) if (v != null && !(Number.isFinite(v) && v > -40 && v < 500)) throw new Error("Limits must be temperatures in °F");
+    if (r.min != null && r.max != null && r.min > r.max) throw new Error(`${RD.TEMP_KIND_LABELS[k]}: minimum is above maximum`);
+  }
+  const any = RD.TEMP_KINDS.some((k) => rules[k].min != null || rules[k].max != null);
+  if (any && !confirmNote?.trim()) throw new Error("Confirm these limits match your facility's approved procedures");
+  return updateWorkspace(
+    state,
+    "stann",
+    (d) => ({ ...d, settings: { ...d.settings, tempRules: rules, tempRulesConfirmed: any ? { at: nowISO(), note: confirmNote!.trim() } : null } }),
+    { action: "temp.rules", detail: any ? `Limits set; confirmed: ${confirmNote}` : "Limits cleared" },
+  );
+}
+
+/** Where a service stands, for the Today screen and the flow bar. */
+export function serviceStatus(state: AppState, date: ISODate, meal: MealService) {
+  const d = state.workspaces.stann;
+  const key = C.sessionKey(date, meal);
+  const menu = mealFor(state, date, meal);
+  const { session, summary, plan, ctx } = productionContext(state, date, meal);
+  const results = plan ? plan.lines.map((l) => ({ line: l, res: PR.computeLine(l, ctx) })) : [];
+  const needsPortion = results.filter((r) => r.res.servings > 0 && !r.line.portion && !r.line.recipeId && !r.line.amountOverride).length;
+  const prep = d.prep.filter((t) => t.date === date && (t.meal === meal || t.meal === null));
+  const prepDone = prep.filter((t) => t.done).length;
+  const ready = RD.readinessProgress(d.settings.checklist, d.readiness?.[key]);
+  const temps = (d.temps ?? []).filter((t) => t.date === date && t.meal === meal && !t.voided);
+  const outOfRange = temps.filter((t) => {
+    const s = RD.evaluateTemp(t.tempF, d.settings.tempRules[t.kind]);
+    return (s.kind === "below" || s.kind === "above") && !t.action;
+  });
+  const requests = d.requests.filter((r) => r.date === date && r.meal === meal && r.status !== "cancelled");
+  return {
+    menu,
+    count: session ? { status: session.status, total: summary!.totalMeals, unresolved: summary!.unresolved } : null,
+    production: plan ? { lines: results.length, needsPortion, results } : null,
+    prep: { done: prepDone, total: prep.length },
+    ready,
+    temps: { logged: temps.length, outOfRange: outOfRange.length },
+    requests: {
+      total: requests.length,
+      unchecked: requests.filter((r) => r.verification === "unverified").length,
+      flagged: requests.filter((r) => r.verification === "flagged").length,
+      open: requests.filter((r) => r.status !== "served").length,
+    },
+  };
 }
