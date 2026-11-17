@@ -34,6 +34,17 @@ npm start            # http://localhost:3000
 
 On an iPhone, open the site in Safari → Share → **Add to Home Screen** to install it like an app.
 
+### GitHub Pages (free hosting)
+
+The workflow in `.github/workflows/pages.yml` builds a static copy of the app and publishes it to
+**https://alienheadbill.github.io/blockcardsv2/** on every push.
+
+One-time setup: on GitHub, open the repository → **Settings → Pages** → under *Build and deployment*,
+set **Source** to **GitHub Actions**. Then re-run the latest "Publish to GitHub Pages" run from the
+**Actions** tab (or push any change).
+
+To build the static site yourself: `GITHUB_PAGES=true npm run build` → files in `out/`.
+
 ## Tests
 
 ```bash

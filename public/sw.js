@@ -1,9 +1,11 @@
 /* Kitchen Blockcards service worker — caches the app shell only.
  * App data lives in the page (demo mode) and is never cached here. */
-const CACHE = "blockcards-shell-v1";
+const CACHE = "blockcards-shell-v2";
+// Works at the site root or under a sub-path (GitHub Pages: /blockcardsv2/).
+const SCOPE = self.registration.scope;
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(CACHE).then((c) => c.addAll(["/", "/icon.svg", "/manifest.webmanifest"])).then(() => self.skipWaiting()));
+  event.waitUntil(caches.open(CACHE).then((c) => c.addAll([SCOPE, `${SCOPE}icon.svg`, `${SCOPE}manifest.webmanifest`])).then(() => self.skipWaiting()));
 });
 
 self.addEventListener("activate", (event) => {
@@ -25,6 +27,6 @@ self.addEventListener("fetch", (event) => {
         }
         return res;
       })
-      .catch(() => caches.match(req).then((hit) => hit || caches.match("/"))),
+      .catch(() => caches.match(req).then((hit) => hit || caches.match(SCOPE))),
   );
 });
