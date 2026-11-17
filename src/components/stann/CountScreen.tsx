@@ -15,7 +15,7 @@ import { TallyMarks } from "../TallyMarks";
 import { act, Badge, Banner, Button, Card, Field, inputCls, Sheet, toast } from "../ui";
 import { PromptSheet, RequestsPanel } from "./RequestsPanel";
 import { ServiceFlow } from "./ServiceFlow";
-import { PrepWhileCounting, TexturesCard } from "./CountPanels";
+import { AdjustSheet, ChangesList, PrepWhileCounting, TexturesCard } from "./CountPanels";
 
 /** Short vibration on supported phones (Android). iPhone Safari has no vibration API, so this is a no-op there. */
 const vibrate = () => {
@@ -146,6 +146,7 @@ function ActiveCount({
   const [practice, setPractice] = useState(false);
   const [logOpen, setLogOpen] = useState(false);
   const [renaming, setRenaming] = useState<C.CountOption | null>(null);
+  const [adjustOpen, setAdjustOpen] = useState(false);
   const [addingBox, setAddingBox] = useState(false);
   const locked = session.status === "complete";
   const entrees = session.options.filter((o) => o.role === "main" || o.role === "alt");
@@ -245,15 +246,24 @@ function ActiveCount({
       {menuChanged && <Banner tone="info">The menu for this date was changed. Tap ✎ on a box to rewrite its name if needed.</Banner>}
 
       {locked ? (
-        <Banner tone="info">
-          This count was reviewed and marked complete. Taps are locked.{" "}
-          <Link href={`/stann/production?date=${date}&meal=${meal}`} className="font-bold underline">
-            Next: work out production →
-          </Link>{" "}
-          <button type="button" className="font-bold underline" onClick={() => setReopenOpen(true)}>
-            Reopen with a reason
-          </button>
-        </Banner>
+        <div className="space-y-2">
+          <Banner tone="info">
+            This count is finished. Late admission or a change? Use the button below — the count stays finished and the change is logged.{" "}
+            <Link href={`/stann/production?date=${date}&meal=${meal}`} className="font-bold underline">
+              Production →
+            </Link>
+          </Banner>
+          {!session.archived && (
+            <Button size="lg" className="w-full" onClick={() => setAdjustOpen(true)}>
+              + Late admit / change
+            </Button>
+          )}
+          {!session.archived && (
+            <button type="button" className="text-sm font-semibold text-muted underline" onClick={() => setReopenOpen(true)}>
+              Or reopen to keep tapping slips
+            </button>
+          )}
+        </div>
       ) : (
         <div className="flex items-center gap-2">
           <div role="radiogroup" aria-label="Counting mode" className="grid flex-1 grid-cols-2 gap-1 rounded-xl bg-surface-2 p-1">
@@ -283,6 +293,8 @@ function ActiveCount({
           </Button>
         </div>
       )}
+
+      <ChangesList session={session} />
 
       {practice && !locked && (
         <div className="rounded-xl border-2 border-dashed border-accent bg-[#d8f3ef] p-3 text-[#16302c]" aria-live="polite">
@@ -448,6 +460,9 @@ function ActiveCount({
 
       <Card title="Count tools">
         <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="outline" disabled={!!session.archived} onClick={() => setAdjustOpen(true)}>
+            Late admit / change
+          </Button>
           <Button size="sm" variant="outline" disabled={locked} onClick={() => setCorrectOpen(true)}>
             Manual correction
           </Button>
@@ -460,6 +475,7 @@ function ActiveCount({
       </Card>
 
       {/* Sticky action bar above bottom nav */}
+      {!locked && (
       <div className="no-print hide-when-typing fixed inset-x-0 bottom-16 z-30 mb-[env(safe-area-inset-bottom)] px-4">
         <div className="mx-auto flex max-w-3xl gap-2 rounded-2xl border border-line bg-surface/95 p-2 shadow-lg backdrop-blur">
           <Button
@@ -479,6 +495,7 @@ function ActiveCount({
           </Button>
         </div>
       </div>
+      )}
 
       <PromptSheet
         key={renaming?.key ?? "none"}
@@ -512,6 +529,7 @@ function ActiveCount({
         onClose={() => setAddingBox(false)}
         onSubmit={(v) => update((s) => C.addOption(s, v))}
       />
+      <AdjustSheet open={adjustOpen} onClose={() => setAdjustOpen(false)} session={session} />
       <ReviewSheet open={reviewOpen} onClose={() => setReviewOpen(false)} session={session} requestTotal={reqCount} />
       <CorrectionSheet open={correctOpen} onClose={() => setCorrectOpen(false)} session={session} />
       <PromptSheet

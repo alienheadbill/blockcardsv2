@@ -10,6 +10,7 @@
 | 4-week rotating menu, overrides, corrections, history | ✅ | |
 | Meal counting (event log, undo, corrections, unclear slips, modifications, review/complete) | ✅ | |
 | Write-your-own tally boxes | ✅ | |
+| Late admits / discharges / switches on open or finished counts, with reasons and a visible change list | ✅ | Count stays finished; Production updates live |
 | Prep list built while counting (menu for today + 2 days, tap to add, check off) | ✅ | Replaced the Notes box |
 | IDDSI texture counters per entrée (L3–L7) and thickened drinks (L1–L4), level guide | ✅ | Counts what the slip says; feeds Production |
 | Double-tap guard, compact mode, haptics (Android) | ✅ | iPhone can't vibrate |

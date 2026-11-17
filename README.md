@@ -101,8 +101,13 @@ as four steps — **Count → Production → Prep → Ready** — each marked do
 4. **Modifications**: tap a suggestion like "+ No bun – Sloppy Joe" or "+ No biscuit – Chicken Pot Pie"
    (or type your own) to count it. They never change the meal total.
 5. **Unclear slip** for anything you can't read — you'll pick the meal before finishing.
-6. **Undo** reverses the last tap. **Manual correction** needs a reason. Everything is in the tap log.
-7. **Review & finish** shows totals per entrée and per unit, warns if a unit has no slips, and locks the count.
+6. **Late admissions and changes** — on an open *or finished* count, tap **Late admit / change**: Add, Remove or
+   Switch a meal (with a texture if the slip has one), tap a reason (Late admission, Discharged / left,
+   Changed their mind…), Save. A finished count stays finished; the change shows in **Changes** with its time and
+   reason, and Production, prep quantities and Today update on their own. (Counts older than the archive
+   window can't be changed.)
+7. **Undo** reverses the last tap. **Manual correction** needs a reason. Everything is in the tap log.
+8. **Review & finish** shows totals per entrée and per unit, warns if a unit has no slips, and locks the count.
    If you happen to know the stack size you can enter it under Count tools, but you don't have to.
 
 Special requests go under the count, like the notebook. Enter the room number and tap **L** or **R** for the

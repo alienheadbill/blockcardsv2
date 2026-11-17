@@ -232,3 +232,157 @@ export function PrepWhileCounting({ date, meal }: { date: ISODate; meal: MealSer
     </Card>
   );
 }
+
+const REASONS = ["Late admission", "Discharged / left", "Changed their mind", "Diet or texture change", "Slip was wrong", "Room move"];
+
+/** Late admits, discharges and changes — on an open or finished count. */
+export function AdjustSheet({ open, onClose, session }: { open: boolean; onClose: () => void; session: C.CountSession }) {
+  return (
+    <Sheet open={open} onClose={onClose} title="Late admit / change">
+      {open && <AdjustForm session={session} onDone={onClose} />}
+    </Sheet>
+  );
+}
+
+function AdjustForm({ session, onDone }: { session: C.CountSession; onDone: () => void }) {
+  const boxes = session.options.filter((o) => o.role !== "unresolved");
+  const summary = C.summarize(session);
+  const [kind, setKind] = useState<"add" | "remove" | "switch">("add");
+  const [box, setBox] = useState(boxes[0]?.key ?? "");
+  const [to, setTo] = useState(boxes[1]?.key ?? boxes[0]?.key ?? "");
+  const [qty, setQty] = useState(1);
+  const [texture, setTexture] = useState("");
+  const [reason, setReason] = useState("");
+  const [other, setOther] = useState("");
+  const finalReason = reason === "Other" ? other : reason;
+
+  const BoxPicker = ({ value, onPick, label }: { value: string; onPick: (k: string) => void; label: string }) => (
+    <fieldset>
+      <legend className="mb-1 text-sm font-bold">{label}</legend>
+      <div className="grid grid-cols-2 gap-2">
+        {boxes.map((b) => (
+          <button
+            key={b.key}
+            type="button"
+            role="radio"
+            aria-checked={value === b.key}
+            onClick={() => onPick(b.key)}
+            className={`min-h-12 rounded-xl border-2 px-2 text-left text-sm font-bold ${value === b.key ? "border-primary bg-accent-soft" : "border-line"}`}
+          >
+            {b.label} <span className="font-semibold text-muted">({summary.byChoice[b.key] ?? 0})</span>
+          </button>
+        ))}
+      </div>
+    </fieldset>
+  );
+
+  const submit = () => {
+    const change: C.CountChange =
+      kind === "switch" ? { kind, from: box, to, qty, ...(texture ? { texture } : {}) } : { kind, box, qty, ...(texture ? { texture } : {}) };
+    const describe = kind === "add" ? `+${qty} ${C.labelFor(session, box)}` : kind === "remove" ? `−${qty} ${C.labelFor(session, box)}` : `${qty} → ${C.labelFor(session, to)}`;
+    if (
+      act(
+        (s) => ops.updateSession(s, session.date, session.meal, (x) => C.adjustCount(x, change, finalReason), { action: "count.adjust", detail: `${session.date} ${session.meal}: ${describe} (${finalReason})` }),
+        `Count updated: ${describe}`,
+      )
+    )
+      onDone();
+  };
+
+  return (
+    <form
+      className="space-y-4"
+      onSubmit={(e) => {
+        e.preventDefault();
+        submit();
+      }}
+    >
+      {session.status === "complete" && <p className="text-sm text-muted">This count is finished — it stays finished. The change is added with its reason.</p>}
+      <div role="radiogroup" aria-label="Kind of change" className="grid grid-cols-3 gap-1 rounded-xl bg-surface-2 p-1">
+        {(
+          [
+            ["add", "+ Add"],
+            ["remove", "− Remove"],
+            ["switch", "⇄ Switch"],
+          ] as const
+        ).map(([k, l]) => (
+          <button key={k} type="button" role="radio" aria-checked={kind === k} onClick={() => setKind(k)} className={`min-h-12 rounded-lg font-bold ${kind === k ? "bg-primary text-primary-ink" : "text-muted"}`}>
+            {l}
+          </button>
+        ))}
+      </div>
+
+      <BoxPicker value={box} onPick={setBox} label={kind === "switch" ? "From" : kind === "add" ? "Add to" : "Take away from"} />
+      {kind === "switch" && <BoxPicker value={to} onPick={setTo} label="To" />}
+
+      <div className="flex items-center gap-3">
+        <span className="text-sm font-bold">How many</span>
+        <Button variant="outline" onClick={() => setQty((q) => Math.max(1, q - 1))} aria-label="Fewer">
+          −
+        </Button>
+        <span className="w-8 text-center text-2xl font-extrabold tabular-nums" aria-live="polite">
+          {qty}
+        </span>
+        <Button variant="outline" onClick={() => setQty((q) => Math.min(99, q + 1))} aria-label="More">
+          +
+        </Button>
+      </div>
+
+      <label className="block">
+        <span className="mb-1 block text-sm font-bold">Texture (if the slip has one)</span>
+        <select className={inputCls} value={texture} onChange={(e) => setTexture(e.target.value)}>
+          <option value="">Regular / none</option>
+          {[...ENTREE_TEXTURES, ...MORE_ENTREE_TEXTURES].map((id) => (
+            <option key={id} value={id}>
+              {iddsi(id).name} (L{iddsi(id).level})
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <fieldset>
+        <legend className="mb-1 text-sm font-bold">Reason</legend>
+        <div className="flex flex-wrap gap-2">
+          {[...REASONS, "Other"].map((r) => (
+            <button
+              key={r}
+              type="button"
+              role="radio"
+              aria-checked={reason === r}
+              onClick={() => setReason(r)}
+              className={`min-h-11 rounded-full border-2 px-3 text-sm font-semibold ${reason === r ? "border-primary bg-primary text-primary-ink" : "border-line"}`}
+            >
+              {r}
+            </button>
+          ))}
+        </div>
+        {reason === "Other" && <input className={`${inputCls} mt-2`} value={other} onChange={(e) => setOther(e.target.value)} placeholder="What happened?" aria-label="Other reason" />}
+      </fieldset>
+
+      <Button type="submit" size="lg" className="w-full" disabled={!finalReason.trim()}>
+        Save change
+      </Button>
+    </form>
+  );
+}
+
+/** Changes made to the count after the slips (late admits, discharges…), in plain words. */
+export function ChangesList({ session }: { session: C.CountSession }) {
+  const changes = C.changeHistory(session);
+  if (!changes.length) return null;
+  return (
+    <Card title={`Changes (${changes.length})`}>
+      <ul className="space-y-1 text-sm" aria-label="Changes to this count">
+        {changes.map((c, i) => (
+          <li key={i} className="flex gap-2 border-b border-line py-1">
+            <time className="w-16 shrink-0 text-muted">{new Date(c.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</time>
+            <span className="min-w-0">
+              <strong>{c.text}</strong> — {c.reason}
+              {c.afterComplete && <span className="text-muted"> (after finishing)</span>}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </Card>
+  );
+}

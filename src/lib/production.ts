@@ -29,6 +29,8 @@ export interface ProductionLine {
   label: string;
   /** True once the cook renamed the line; then it no longer follows the tally box name. */
   labelEdited?: boolean;
+  /** An add-on based on a box (e.g. Biscuits per Pot Pie) — the entrée's textures aren't repeated on it. */
+  derived?: boolean;
   source: LineSource;
   /** Modification counters to subtract, e.g. "No biscuit – Chicken Pot Pie" from a Biscuits line. */
   subtractKeys: string[];
@@ -179,7 +181,7 @@ export function computeLine(line: ProductionLine, ctx: LineContext): LineResult 
   let makeAmount = finished;
   if (line.amountOverride) makeAmount = toQty(line.amountOverride.qty, line.amountOverride.unit);
   const textures =
-    line.source.kind === "box"
+    line.source.kind === "box" && !line.derived
       ? (ctx.textures?.[line.source.key] ?? []).map((t) => ({ ...t, label: `${iddsi(t.levelId).name} (L${iddsi(t.levelId).level})` }))
       : [];
   const textured = textures.reduce((n, t) => n + t.count, 0);

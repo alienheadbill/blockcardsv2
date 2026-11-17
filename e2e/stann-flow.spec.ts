@@ -35,7 +35,7 @@ test("count flows into production, prep and service readiness", async ({ page })
   await expect(page.getByRole("navigation", { name: "Service steps" }).getByRole("link", { name: /Count: 10 done/ })).toBeVisible();
 
   // Production
-  await page.getByRole("link", { name: "Next: work out production →" }).click();
+  await page.getByRole("link", { name: "Production →" }).click();
   await expect(page.getByTestId("servings-Chicken Pot Pie")).toHaveText("6");
   await expect(page.getByText("1 Puréed (L4) · 1 Minced & Moist (L5)")).toBeVisible();
   const potPie = page.getByRole("region", { name: "Chicken Pot Pie" });
@@ -61,6 +61,23 @@ test("count flows into production, prep and service readiness", async ({ page })
   await page.getByRole("checkbox", { name: "No biscuit – Chicken Pot Pie" }).check();
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByTestId("servings-Biscuits")).toHaveText("5");
+
+  // Late admission after the count was finished
+  await page.goto(`/stann/counts${Q}`);
+  await page.getByRole("button", { name: "+ Late admit / change" }).click();
+  const sheet = page.getByRole("dialog", { name: "Late admit / change" });
+  await sheet.getByRole("radio", { name: /^Chicken Pot Pie/ }).click();
+  await sheet.getByRole("combobox").selectOption({ label: "Puréed (L4)" });
+  await sheet.getByRole("radio", { name: "Late admission" }).click();
+  await sheet.getByRole("button", { name: "Save change" }).click();
+  await expect(page.getByTestId("total-meals")).toHaveText("11");
+  await expect(page.getByText("Count complete")).toBeVisible(); // still finished
+  await expect(page.getByRole("list", { name: "Changes to this count" })).toContainText("+1 Chicken Pot Pie");
+  await expect(page.getByRole("list", { name: "Changes to this count" })).toContainText("Late admission");
+  await page.goto(`/stann/production${Q}`);
+  await expect(page.getByTestId("servings-Chicken Pot Pie")).toHaveText("7");
+  await expect(page.getByTestId("servings-Biscuits")).toHaveText("6");
+  await expect(page.getByText("2 Puréed (L4) · 1 Minced & Moist (L5)")).toBeVisible();
 
   // Override with a reason
   await potPie.getByRole("button", { name: "Change servings" }).click();

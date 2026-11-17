@@ -594,7 +594,7 @@ export function setManualServings(state: AppState, date: ISODate, meal: MealServ
 export function addPlanLine(state: AppState, date: ISODate, meal: MealService, label: string, source: PR.LineSource): AppState {
   if (!label.trim()) throw new Error("Name the line");
   const defaults = state.workspaces.stann.productionDefaults ?? {};
-  const line = { ...PR.newLine(label, source, defaults[PR.normName(label)]), labelEdited: true };
+  const line = { ...PR.newLine(label, source, defaults[PR.normName(label)]), labelEdited: true, derived: source.kind === "box" };
   return updatePlan(state, date, meal, (p) => ({ ...p, lines: [...p.lines, line] }), `Added ${label.trim()}`);
 }
 

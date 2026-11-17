@@ -222,6 +222,40 @@ describe("counting", () => {
     expect(() => C.tapTexture(s, "f4", "nope")).toThrow();
   });
 
+  it("late admits and changes work on a finished count, which stays finished", () => {
+    let s = C.complete(tap(tap(fresh(), MAIN, 15), ALT, 31), []);
+    s = C.adjustCount(s, { kind: "add", box: ALT, qty: 2, texture: "f5" }, "Late admission");
+    expect(s.status).toBe("complete");
+    let sum = C.summarize(s);
+    expect(sum.totalMeals).toBe(48);
+    expect(sum.byChoice[ALT]).toBe(33);
+    expect(C.textureCounts(s, sum.items)[ALT]).toEqual([{ levelId: "f5", count: 2 }]);
+
+    s = C.adjustCount(s, { kind: "switch", from: MAIN, to: ALT, qty: 1 }, "Changed their mind");
+    s = C.adjustCount(s, { kind: "remove", box: MAIN, qty: 1 }, "Discharged / left");
+    sum = C.summarize(s);
+    expect(sum.byChoice[MAIN]).toBe(13);
+    expect(sum.byChoice[ALT]).toBe(34);
+    expect(sum.totalMeals).toBe(47);
+
+    const history = C.changeHistory(s);
+    expect(history.map((h) => [h.text, h.reason, h.afterComplete])).toEqual([
+      ["-1 Vegetable Frittata, Hash Pattie", "Discharged / left", true],
+      ["1 switched: Vegetable Frittata, Hash Pattie → Chicken Pot Pie with Biscuit", "Changed their mind", true],
+      ["+2 Chicken Pot Pie with Biscuit, +2 Minced & Moist (L5) – Chicken Pot Pie with Biscuit", "Late admission", true],
+    ]);
+  });
+
+  it("rejects changes that don't make sense, without recording anything", () => {
+    const s = C.complete(tap(fresh(), MAIN, 2), []);
+    expect(() => C.adjustCount(s, { kind: "remove", box: MAIN, qty: 3 }, "x")).toThrow(/isn't|aren't/);
+    expect(() => C.adjustCount(s, { kind: "remove", box: MAIN, qty: 1, texture: "f4" }, "x")).toThrow(/counted to take away/);
+    expect(() => C.adjustCount(s, { kind: "add", box: MAIN, qty: 1 }, " ")).toThrow(/reason/);
+    expect(() => C.adjustCount(s, { kind: "switch", from: MAIN, to: MAIN, qty: 1 }, "x")).toThrow(/different/);
+    expect(() => C.adjustCount(s, { kind: "add", box: C.UNRESOLVED_CHOICE, qty: 1 }, "x")).toThrow(/Pick a meal/);
+    expect(() => C.adjustCount(C.archiveSession(s), { kind: "add", box: MAIN, qty: 1 }, "x")).toThrow(/archived/);
+  });
+
   it("groups tallies in fives", () => {
     expect(C.tallyGroups(0)).toEqual([]);
     expect(C.tallyGroups(12)).toEqual([5, 5, 2]);

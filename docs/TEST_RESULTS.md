@@ -4,6 +4,14 @@ All runs below were executed in this repository's cloud dev container (Linux, No
 Playwright's iPhone 13 profile). **No WebKit (Safari) engine is available here**, so nothing below is a real
 Safari run — see "Not tested".
 
+## 2026-11-17 — Editing counts after the fact
+
+| Suite | Result |
+|---|---|
+| Unit tests | ✅ **110 passed** (new: add/remove/switch on finished counts with textures; invalid changes rejected atomically; archived counts read-only) |
+| E2E server build | ✅ 7 passed, 1 skipped (static-only) — St. Ann flow now includes a late admission after finishing the count and checks Production updates |
+| E2E static build | ✅ 8 passed |
+
 ## 2026-11-17 — Cook feedback round (prep while counting, optional portions, IDDSI textures)
 
 | Suite | Result |

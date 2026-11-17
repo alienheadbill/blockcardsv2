@@ -50,6 +50,8 @@ export type CountEvent =
       target: { kind: "slip"; choice: string } | { kind: "item"; itemKey: string };
       delta: number;
       reason: string;
+      /** Corrections made together (e.g. a "switch") share a group id. */
+      group?: string;
     })
   | (BaseEvent & { type: "complete"; acknowledgements: string[] })
   | (BaseEvent & { type: "reopen"; reason: string });
@@ -389,6 +391,108 @@ export function correct(
     if ((summary.items[target.itemKey] ?? 0) + delta < 0) throw new Error("Correction would make the count negative");
   }
   return append(session, { type: "correction", target, delta, reason: reason.trim() });
+}
+
+export type CountChange =
+  | { kind: "add"; box: string; qty: number; texture?: string }
+  | { kind: "remove"; box: string; qty: number; texture?: string }
+  | { kind: "switch"; from: string; to: string; qty: number; texture?: string };
+
+/**
+ * Change a count after the fact — late admissions, discharges, someone changing
+ * their mind, a diet/texture change. Works on open AND completed counts (a
+ * completed count stays completed), never on archived ones. Every change is a
+ * correction event with the reason, so the history shows exactly what changed.
+ */
+export function adjustCount(session: CountSession, change: CountChange, reason: string): CountSession {
+  if (session.archived) throw new Error("This count was archived to save space — totals are kept but it can't be changed.");
+  if (!reason.trim()) throw new Error("Pick or type a reason");
+  if (!Number.isInteger(change.qty) || change.qty < 1 || change.qty > 99) throw new Error("Number must be 1–99");
+  const boxes = change.kind === "switch" ? [change.from, change.to] : [change.box];
+  for (const b of boxes) {
+    const o = session.options.find((x) => x.key === b);
+    if (!o || o.role === "unresolved") throw new Error("Pick a meal");
+  }
+  if (change.kind === "switch" && change.from === change.to) throw new Error("Pick two different meals to switch between");
+
+  let s = session;
+  const ensureTexture = (levelId: string, box: string) => {
+    const key = textureKey(levelId, box);
+    if (!s.extras.some((e) => e.key === key)) {
+      const label = textureLabel(levelId, s.options.find((o) => o.key === box)!.label);
+      s = { ...s, extras: [...s.extras, { key, label, kind: "texture" }] };
+    }
+    return key;
+  };
+  const plan: { target: { kind: "slip"; choice: string } | { kind: "item"; itemKey: string }; delta: number }[] = [];
+  const q = change.qty;
+  if (change.kind === "add") {
+    plan.push({ target: { kind: "slip", choice: change.box }, delta: q });
+    if (change.texture) plan.push({ target: { kind: "item", itemKey: ensureTexture(change.texture, change.box) }, delta: q });
+  } else if (change.kind === "remove") {
+    plan.push({ target: { kind: "slip", choice: change.box }, delta: -q });
+    if (change.texture) plan.push({ target: { kind: "item", itemKey: ensureTexture(change.texture, change.box) }, delta: -q });
+  } else {
+    plan.push({ target: { kind: "slip", choice: change.from }, delta: -q }, { target: { kind: "slip", choice: change.to }, delta: q });
+    if (change.texture)
+      plan.push(
+        { target: { kind: "item", itemKey: ensureTexture(change.texture, change.from) }, delta: -q },
+        { target: { kind: "item", itemKey: ensureTexture(change.texture, change.to) }, delta: q },
+      );
+  }
+  // validate the whole change before recording any of it
+  const sum = summarize(s);
+  const byChoice = { ...sum.byChoice };
+  const items = { ...sum.items };
+  for (const p of plan) {
+    if (p.target.kind === "slip") {
+      byChoice[p.target.choice] = (byChoice[p.target.choice] ?? 0) + p.delta;
+      if (byChoice[p.target.choice]! < 0) throw new Error(`There ${q === 1 ? "isn't" : "aren't"} ${q} ${labelFor(s, p.target.choice)} to take away`);
+    } else {
+      items[p.target.itemKey] = (items[p.target.itemKey] ?? 0) + p.delta;
+      if (items[p.target.itemKey]! < 0) throw new Error(`There ${q === 1 ? "isn't" : "aren't"} ${q} ${labelFor(s, p.target.itemKey)} counted to take away`);
+    }
+  }
+  const group = newId("chg");
+  for (const p of plan) s = append(s, { type: "correction", target: p.target, delta: p.delta, reason: reason.trim(), group });
+  return s;
+}
+
+export interface CountChangeRecord {
+  at: string;
+  reason: string;
+  /** e.g. "+1 Chicken Pot Pie", "Veggfritata → Chicken Pot Pie" */
+  text: string;
+  afterComplete: boolean;
+}
+
+/** Corrections in plain words, newest first, grouped like they were entered. */
+export function changeHistory(session: CountSession): CountChangeRecord[] {
+  if (session.archived) {
+    return [...session.archived.corrections].reverse().map((c) => ({ at: c.at, reason: c.reason, text: `${c.delta > 0 ? "+" : ""}${c.delta} ${c.label}`, afterComplete: true }));
+  }
+  const undone = undoneIds(session);
+  let completed = false;
+  const groups = new Map<string, { at: string; reason: string; parts: { label: string; delta: number; slip: boolean }[]; after: boolean }>();
+  for (const e of session.events) {
+    if (e.type === "complete") completed = true;
+    if (e.type === "reopen") completed = false;
+    if (e.type !== "correction" || undone.has(e.id)) continue;
+    const g = groups.get(e.group ?? e.id) ?? { at: e.at, reason: e.reason, parts: [], after: completed };
+    g.parts.push({ label: labelFor(session, e.target.kind === "slip" ? e.target.choice : e.target.itemKey), delta: e.delta, slip: e.target.kind === "slip" });
+    groups.set(e.group ?? e.id, g);
+  }
+  return [...groups.values()]
+    .map((g) => {
+      const slips = g.parts.filter((p) => p.slip);
+      const switched = slips.length === 2 && slips[0]!.delta === -slips[1]!.delta;
+      const text = switched
+        ? `${slips[1]!.delta > 0 ? slips[1]!.delta : -slips[1]!.delta} switched: ${slips.find((p) => p.delta < 0)!.label} → ${slips.find((p) => p.delta > 0)!.label}`
+        : g.parts.map((p) => `${p.delta > 0 ? "+" : ""}${p.delta} ${p.label}`).join(", ");
+      const textured = switched && g.parts.some((p) => !p.slip) ? ` (${g.parts.find((p) => !p.slip)!.label.split(" – ")[0]})` : "";
+      return { at: g.at, reason: g.reason, text: text + textured, afterComplete: g.after };
+    })
+    .reverse();
 }
 
 export interface CountSummary {
