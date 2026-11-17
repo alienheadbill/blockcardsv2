@@ -23,6 +23,12 @@ test("count flows into production, prep and service readiness", async ({ page })
   await page.getByRole("button", { name: /^Add one Puréed level 4 Chicken Pot Pie/ }).click();
   await page.getByRole("button", { name: /^Add one Minced & Moist level 5 Chicken Pot Pie/ }).click();
   await expect(page.getByTestId("total-meals")).toHaveText("10");
+  // Drinks aren't counted — they're reference-only in the level guide
+  await expect(page.getByRole("button", { name: /drink, level/ })).toHaveCount(0);
+  await page.getByRole("region", { name: "Textures (IDDSI)" }).getByRole("button", { name: "Level guide" }).click();
+  await page.getByRole("dialog", { name: "IDDSI levels" }).getByRole("tab", { name: "Drinks" }).click();
+  await expect(page.getByRole("dialog", { name: "IDDSI levels" }).getByText("Level 2 · Mildly Thick")).toBeVisible();
+  await page.keyboard.press("Escape");
   // Prep while counting: tomorrow's menu → today's prep list
   const prepCard = page.getByRole("region", { name: /^Prep list/ });
   await prepCard.getByRole("tab", { name: "Tomorrow" }).click();

@@ -96,7 +96,8 @@ as four steps — **Count → Production → Prep → Ready** — each marked do
 3. Build today's prep list right there: the **Prep list** card shows the menu for today, tomorrow and the day
    after — tap an item to add it to today's list, type your own, and check things off.
 4. **Textures (IDDSI)**: tap Puréed (L4), Minced & Moist (L5) or Soft & Bite-Sized (L6) under each entrée as
-   the slips say (more levels and thickened drinks L1–L4 are there too; "Level guide" explains each). These
+   the slips say (Liquidised L3 and Easy to Chew L7 under "More levels"; "Level guide" explains each, with thickened-drink
+   levels on a separate Drinks tab for reference only). These
    don't change the meal total and show up on Production and prep tasks.
 4. **Modifications**: tap a suggestion like "+ No bun – Sloppy Joe" or "+ No biscuit – Chicken Pot Pie"
    (or type your own) to count it. They never change the meal total.

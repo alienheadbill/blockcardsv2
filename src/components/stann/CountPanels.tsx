@@ -2,7 +2,7 @@
 import { useMemo, useState } from "react";
 import * as C from "@/lib/counting";
 import { addDays, formatShort, type ISODate } from "@/lib/dates";
-import { DRINK_TEXTURES, DRINKS_TARGET, ENTREE_TEXTURES, IDDSI_LEVELS, iddsi, MORE_ENTREE_TEXTURES, textureKey } from "@/lib/iddsi";
+import { ENTREE_TEXTURES, IDDSI_LEVELS, iddsi, MORE_ENTREE_TEXTURES, textureKey } from "@/lib/iddsi";
 import { MEAL_LABELS, type MealService } from "@/lib/menu/types";
 import * as P from "@/lib/prep";
 import * as ops from "@/lib/state/ops";
@@ -31,6 +31,7 @@ export function TexturesCard({
 }) {
   const [more, setMore] = useState(false);
   const [guide, setGuide] = useState(false);
+  const [guideTab, setGuideTab] = useState<"food" | "drink">("food");
   const entrees = session.options.filter((o) => o.role === "main" || o.role === "alt");
   const levels = more ? [...ENTREE_TEXTURES, ...MORE_ENTREE_TEXTURES] : [...ENTREE_TEXTURES];
   const count = (levelId: string, target: string) => items[textureKey(levelId, target)] ?? 0;
@@ -75,31 +76,6 @@ export function TexturesCard({
             </div>
           </div>
         ))}
-        <div>
-          <p className="mb-1 text-sm font-bold">Thickened drinks</p>
-          <div className="grid grid-cols-4 gap-2">
-            {DRINK_TEXTURES.map((id) => {
-              const l = iddsi(id);
-              const n = count(id, DRINKS_TARGET);
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  disabled={locked}
-                  onClick={() => onTap(id, DRINKS_TARGET)}
-                  aria-label={`Add one ${l.name} drink, level ${l.level}. Now ${n}.`}
-                  className={`flex min-h-14 flex-col justify-center rounded-xl border-2 px-1 text-center active:scale-[0.97] disabled:opacity-50 ${n ? "border-primary bg-accent-soft/50" : "border-line bg-surface"}`}
-                >
-                  <span className="flex items-center justify-center gap-1 text-[11px] font-bold text-muted">
-                    <Swatch color={l.color} /> L{l.level}
-                  </span>
-                  <span className="text-[11px] font-bold leading-tight">{l.short}</span>
-                  <span className="text-base font-extrabold tabular-nums">{n}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
       </div>
       <button type="button" className="mt-2 text-sm font-semibold text-primary underline" onClick={() => setMore((v) => !v)} aria-expanded={more}>
         {more ? "Fewer levels" : "More levels (Liquidised, Easy to Chew)"}
@@ -109,22 +85,32 @@ export function TexturesCard({
         <p className="mb-3 text-sm text-muted">
           Quick reference to the IDDSI framework (iddsi.org). Always follow the resident&apos;s diet order on the slip and your facility&apos;s procedures — the app doesn&apos;t assign textures.
         </p>
-        {(["food", "drink"] as const).map((k) => (
-          <div key={k} className="mb-4">
-            <h3 className="mb-2 font-extrabold">{k === "food" ? "Foods" : "Drinks"}</h3>
-            <ul className="space-y-2">
-              {IDDSI_LEVELS.filter((l) => l.kind === k).map((l) => (
-                <li key={l.id} className="rounded-xl border border-line p-3">
-                  <p className="flex items-center gap-2 font-bold">
-                    <Swatch color={l.color} /> Level {l.level} · {l.name}
-                  </p>
-                  <p className="text-sm">{l.summary}</p>
-                  <p className="mt-1 text-xs text-muted">Test: {l.test}</p>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
+        <div role="tablist" aria-label="Guide section" className="mb-3 grid grid-cols-2 gap-1 rounded-xl bg-surface-2 p-1">
+          {(["food", "drink"] as const).map((k) => (
+            <button
+              key={k}
+              type="button"
+              role="tab"
+              aria-selected={guideTab === k}
+              onClick={() => setGuideTab(k)}
+              className={`min-h-11 rounded-lg font-bold ${guideTab === k ? "bg-primary text-primary-ink" : "text-muted"}`}
+            >
+              {k === "food" ? "Foods" : "Drinks"}
+            </button>
+          ))}
+        </div>
+        {guideTab === "drink" && <p className="mb-2 text-xs text-muted">Reference only — thickened drinks aren&apos;t counted here.</p>}
+        <ul className="space-y-2">
+          {IDDSI_LEVELS.filter((l) => l.kind === guideTab).map((l) => (
+            <li key={l.id} className="rounded-xl border border-line p-3">
+              <p className="flex items-center gap-2 font-bold">
+                <Swatch color={l.color} /> Level {l.level} · {l.name}
+              </p>
+              <p className="text-sm">{l.summary}</p>
+              <p className="mt-1 text-xs text-muted">Test: {l.test}</p>
+            </li>
+          ))}
+        </ul>
       </Sheet>
     </Card>
   );

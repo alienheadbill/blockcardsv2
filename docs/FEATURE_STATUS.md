@@ -12,7 +12,7 @@
 | Write-your-own tally boxes | ✅ | |
 | Late admits / discharges / switches on open or finished counts, with reasons and a visible change list | ✅ | Count stays finished; Production updates live |
 | Prep list built while counting (menu for today + 2 days, tap to add, check off) | ✅ | Replaced the Notes box |
-| IDDSI texture counters per entrée (L3–L7) and thickened drinks (L1–L4), level guide | ✅ | Counts what the slip says; feeds Production |
+| IDDSI texture counters per entrée (L3–L7), level guide with a reference-only Drinks tab | ✅ | Counts what the slip says; feeds Production. Drinks not counted (cook doesn't handle them) |
 | Double-tap guard, compact mode, haptics (Android) | ✅ | iPhone can't vibrate |
 | Count by unit | ✅ | Off by default |
 | Special requests, diet-checked, flags, daily regulars | ✅ | Fictional rooms only |
