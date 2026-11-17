@@ -1,10 +1,16 @@
 /**
- * Units and scaling. Conversions only happen *within* a dimension
- * (volume↔volume, weight↔weight). Weight↔volume is never attempted because it
- * depends on the ingredient.
+ * Units and scaling. These conversions stay *within* a dimension
+ * (volume↔volume, weight↔weight). Weight↔volume needs an ingredient-specific
+ * density — see `convert.ts`.
+ *
+ * Volume is measured in teaspoons, weight in (avoirdupois) ounces.
+ * "oz" is always WEIGHT; "fl oz" is always VOLUME.
  */
-export const VOLUME_UNITS = { tsp: 1, tbsp: 3, cup: 48, qt: 192, gal: 768 } as const;
-export const WEIGHT_UNITS = { oz: 1, lb: 16 } as const;
+const ML_PER_TSP = 4.92892159375;
+const G_PER_OZ = 28.349523125;
+export const VOLUME_UNITS = { tsp: 1, tbsp: 3, "fl oz": 6, cup: 48, pt: 96, qt: 192, gal: 768, ml: 1 / ML_PER_TSP, L: 1000 / ML_PER_TSP } as const;
+export const WEIGHT_UNITS = { oz: 1, lb: 16, g: 1 / G_PER_OZ, kg: 1000 / G_PER_OZ } as const;
+export const METRIC_UNITS = new Set(["ml", "L", "g", "kg"]);
 export type VolumeUnit = keyof typeof VOLUME_UNITS;
 export type WeightUnit = keyof typeof WEIGHT_UNITS;
 export const COUNT_UNITS = ["each", "can", "#10 can", "clove", "bunch", "pinch", "slice", "pkg"] as const;
@@ -74,7 +80,37 @@ export function formatQty(n: number): string {
   return fracStr ? `${whole} ${fracStr}` : String(whole);
 }
 
-export function scaleQuantity(qty: number, unit: string, factor: number, keepUnit = false) {
+/** Metric version of a quantity: ml / L for volume, g / kg for weight. */
+export function metric(qty: number, unit: string): { qty: number; unit: string } {
+  const dim = dimensionOf(unit);
+  if (dim === "count") return { qty, unit };
+  if (dim === "weight") {
+    const g = convert(qty, unit, "g");
+    return g >= 1000 ? { qty: g / 1000, unit: "kg" } : { qty: g, unit: "g" };
+  }
+  const ml = convert(qty, unit, "ml");
+  return ml >= 1000 ? { qty: ml / 1000, unit: "L" } : { qty: ml, unit: "ml" };
+}
+
+/** Metric amounts read as decimals, not fractions: 227 g, 1.4 kg, 15 ml. */
+export function formatMetric(n: number): string {
+  if (n >= 100) return String(Math.round(n));
+  if (n >= 10) return String(Math.round(n * 10) / 10);
+  return String(Math.round(n * 100) / 100);
+}
+
+/** Format a quantity the way a cook would read it for that unit. */
+export function formatAmount(qty: number, unit: string): string {
+  return `${METRIC_UNITS.has(unit) ? formatMetric(qty) : formatQty(qty)} ${unit}`;
+}
+
+/** "kitchen" picks readable US units, "original" keeps the recipe's unit, "metric" uses g/kg/ml/L. */
+export type UnitMode = "kitchen" | "original" | "metric";
+
+export function scaleQuantity(qty: number, unit: string, factor: number, mode: UnitMode | boolean = "kitchen") {
   const scaled = qty * factor;
-  return keepUnit ? { qty: scaled, unit } : friendly(scaled, unit);
+  const m: UnitMode = mode === true ? "original" : mode === false ? "kitchen" : mode;
+  if (m === "original") return { qty: scaled, unit };
+  if (m === "metric") return metric(scaled, unit);
+  return METRIC_UNITS.has(unit) ? { qty: scaled, unit } : friendly(scaled, unit);
 }

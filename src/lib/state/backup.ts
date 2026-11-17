@@ -84,6 +84,7 @@ export const appStateSchema = z.looseObject({
   schemaVersion: z.literal(SCHEMA_VERSION),
   mode: z.literal("demo"),
   activeWorkspace: z.enum(WORKSPACE_IDS).nullable(),
+  conversions: arr(z.looseObject({ id: z.string(), name: z.string().min(1).max(100), gramsPerCup: z.number().positive().max(5000) })),
   workspaces: z.object({ stann: workspaceSchemas.stann, truck: workspaceSchemas.truck, home: workspaceSchemas.home }),
 });
 

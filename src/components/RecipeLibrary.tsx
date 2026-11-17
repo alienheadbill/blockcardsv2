@@ -2,7 +2,8 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { makeRecipe, scaleRecipe, searchRecipes, type Recipe } from "@/lib/recipes/recipes";
-import { ALL_UNITS } from "@/lib/recipes/units";
+import { ALL_UNITS, type UnitMode } from "@/lib/recipes/units";
+import { ConverterSheet, type ConvertPreset } from "./Converter";
 import * as ops from "@/lib/state/ops";
 import { useAppState } from "@/lib/state/store";
 import type { WorkspaceId } from "@/lib/workspaces";
@@ -72,9 +73,10 @@ function RecipeDetail({
   setEditing: (r: Recipe | "new" | null) => void;
 }) {
   const [portions, setPortions] = useState(String(defaultPortions));
-  const [keepUnits, setKeepUnits] = useState(false);
+  const [unitMode, setUnitMode] = useState<UnitMode>("kitchen");
+  const [converting, setConverting] = useState<ConvertPreset | null>(null);
   const n = Number(portions);
-  const scaled = useMemo(() => (n > 0 ? scaleRecipe(recipe, n, keepUnits) : null), [recipe, n, keepUnits]);
+  const scaled = useMemo(() => (n > 0 ? scaleRecipe(recipe, n, unitMode) : null), [recipe, n, unitMode]);
   return (
     <div className="space-y-3">
       <button type="button" onClick={onBack} className="text-base font-semibold text-primary underline">
@@ -109,10 +111,27 @@ function RecipeDetail({
             </Button>
           ))}
         </div>
-        <label className="mt-2 flex items-center gap-2 text-sm">
-          <input type="checkbox" className="h-5 w-5" checked={keepUnits} onChange={(e) => setKeepUnits(e.target.checked)} /> Keep original units
-        </label>
-        <p className="mt-1 text-xs text-muted">Volume stays volume and weight stays weight — the app never converts between them.</p>
+        <div role="radiogroup" aria-label="Show measurements as" className="mt-3 grid grid-cols-3 gap-1 rounded-xl bg-surface-2 p-1">
+          {(
+            [
+              ["kitchen", "Kitchen"],
+              ["original", "As written"],
+              ["metric", "Metric"],
+            ] as const
+          ).map(([m, label]) => (
+            <button
+              key={m}
+              type="button"
+              role="radio"
+              aria-checked={unitMode === m}
+              onClick={() => setUnitMode(m)}
+              className={`min-h-10 rounded-lg text-sm font-bold ${unitMode === m ? "bg-primary text-primary-ink" : "text-muted"}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <p className="mt-1 text-xs text-muted">Tap any ingredient below to see it in cups, ounces, pounds, grams and more.</p>
         {showCost && recipe.costPerBatch != null && n > 0 && (
           <p className="mt-2 text-base font-semibold">
             Food cost: ${((recipe.costPerBatch / recipe.yieldPortions) * n).toFixed(2)} (${(recipe.costPerBatch / recipe.yieldPortions).toFixed(2)} / portion)
@@ -124,12 +143,19 @@ function RecipeDetail({
         {scaled ? (
           <ul className="divide-y divide-line">
             {scaled.ingredients.map((i) => (
-              <li key={i.id} className="flex gap-3 py-2 text-lg">
-                <span className="w-28 shrink-0 text-right font-extrabold tabular-nums">{i.display}</span>
-                <span>
-                  {i.name}
-                  {i.note && <span className="text-sm text-muted"> ({i.note})</span>}
-                </span>
+              <li key={i.id}>
+                <button
+                  type="button"
+                  onClick={() => setConverting({ qty: i.qty, unit: i.unit, ingredient: i.name })}
+                  className="flex w-full gap-3 py-2 text-left text-lg active:bg-surface-2"
+                  aria-label={`Convert ${i.display} ${i.name}`}
+                >
+                  <span className="w-28 shrink-0 text-right font-extrabold tabular-nums underline decoration-dotted decoration-2 underline-offset-4">{i.display}</span>
+                  <span>
+                    {i.name}
+                    {i.note && <span className="text-sm text-muted"> ({i.note})</span>}
+                  </span>
+                </button>
               </li>
             ))}
           </ul>
@@ -137,6 +163,8 @@ function RecipeDetail({
           <Empty>Enter a number of portions.</Empty>
         )}
       </Card>
+
+      <ConverterSheet open={!!converting} preset={converting} onClose={() => setConverting(null)} />
 
       <Card title="Method">
         <ol className="list-decimal space-y-3 pl-6 text-lg leading-relaxed">
@@ -210,7 +238,7 @@ export function parseIngredients(text: string): [number, string, string, string?
     .map((l) => l.trim())
     .filter(Boolean)
     .map((line) => {
-      const m = line.match(/^(\d+(?:\.\d+)?|\d+\/\d+|\d+ \d+\/\d+)\s+(#10 can|\S+)\s+(.+)$/);
+      const m = line.match(/^(\d+(?:\.\d+)?|\d+\/\d+|\d+ \d+\/\d+)\s+(#10 can|fl oz|\S+)\s+(.+)$/);
       if (!m) throw new Error(`Couldn't read ingredient line: “${line}”. Use: qty unit name`);
       const qtyStr = m[1]!;
       const qty = qtyStr.includes("/")

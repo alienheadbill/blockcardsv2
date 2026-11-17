@@ -5,6 +5,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { consumeLoadWarning, dispatch, useSaveStatus } from "@/lib/state/store";
 import { setActiveWorkspace } from "@/lib/state/ops";
 import { WORKSPACES, type WorkspaceId } from "@/lib/workspaces";
+import { ConverterSheet } from "./Converter";
 import { Icon } from "./Icon";
 import { Banner, Hydrated, Toasts } from "./ui";
 
@@ -29,8 +30,8 @@ function SaveIndicator() {
       </span>
     );
   return (
-    <span className="text-xs font-semibold text-primary-ink/80" role="status" aria-live="polite">
-      {status.kind === "saved" ? "✓ Saved on this device" : "Demo · on this device"}
+    <span className="block truncate text-xs font-semibold text-primary-ink/80" role="status" aria-live="polite">
+      {status.kind === "saved" ? "✓ Saved" : "Demo · this device"}
       {!online && " · offline"}
     </span>
   );
@@ -40,6 +41,7 @@ export function AppShell({ ws, children }: { ws: WorkspaceId; children: ReactNod
   const cfg = WORKSPACES[ws];
   const pathname = usePathname();
   const [warning, setWarning] = useState<string | null>(null);
+  const [converting, setConverting] = useState(false);
 
   useEffect(() => {
     dispatch((s) => setActiveWorkspace(s, ws));
@@ -63,18 +65,29 @@ export function AppShell({ ws, children }: { ws: WorkspaceId; children: ReactNod
             <p className="truncate text-base font-extrabold leading-tight">{cfg.name}</p>
             <SaveIndicator />
           </div>
+          <button
+            type="button"
+            onClick={() => setConverting(true)}
+            className="flex min-h-11 min-w-11 flex-col items-center justify-center rounded-xl border border-primary-ink/30 px-2 text-[10px] font-semibold leading-none hover:bg-white/10 sm:flex-row sm:gap-1 sm:px-3 sm:text-sm"
+            aria-label="Measurement converter"
+          >
+            <Icon name="scale" className="h-5 w-5" />
+            <span className="mt-0.5 sm:mt-0">Convert</span>
+          </button>
           <Link
             href="/"
-            className="flex min-h-11 items-center gap-1 rounded-xl border border-primary-ink/30 px-3 text-sm font-semibold hover:bg-white/10"
+            className="flex min-h-11 min-w-11 flex-col items-center justify-center rounded-xl border border-primary-ink/30 px-2 text-[10px] font-semibold leading-none hover:bg-white/10 sm:flex-row sm:gap-1 sm:px-3 sm:text-sm"
             aria-label="Switch workspace"
           >
-            <Icon name="swap" className="h-5 w-5" /> Switch
+            <Icon name="swap" className="h-5 w-5" />
+            <span className="mt-0.5 sm:mt-0">Switch</span>
           </Link>
         </div>
       </header>
 
       <main className="print-full mx-auto max-w-3xl px-4 pb-28 pt-4">
         <Hydrated>
+          <ConverterSheet open={converting} onClose={() => setConverting(false)} />
           {warning && (
             <div className="mb-3">
               <Banner tone="danger">{warning}</Banner>

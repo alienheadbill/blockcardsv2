@@ -9,6 +9,7 @@ import { overrideKey, resolveMeal, type ResolvedMeal } from "../menu/rotation";
 import type { MealService, MenuItem, MenuItemKind } from "../menu/types";
 import * as P from "../prep";
 import { reviseRecipe, type Recipe } from "../recipes/recipes";
+import { convert, dimensionOf } from "../recipes/units";
 import * as R from "../requests";
 import type { WorkspaceId } from "../workspaces";
 import { updateWorkspace, type AppState, type InventoryItem, type ShoppingItem, type Ticket, type TicketStatus, type TruckMenuItem } from "./model";
@@ -388,4 +389,22 @@ export function groceryFromPlan(state: AppState, dates: ISODate[]): AppState {
     }
   }
   return next;
+}
+
+// ───────────────────────── measurement conversions (app-wide) ─────────────────────────
+
+/** Save "1 <volume> of <ingredient> weighs <weight>" as the cook's own conversion. */
+export function saveConversion(state: AppState, name: string, volume: { qty: number; unit: string }, weight: { qty: number; unit: string }): AppState {
+  const clean = name.trim();
+  if (!clean) throw new Error("Name the ingredient");
+  if (dimensionOf(volume.unit) !== "volume" || dimensionOf(weight.unit) !== "weight") throw new Error("Use a volume (cups, tbsp…) and a weight (oz, lb, g…)");
+  if (!(volume.qty > 0) || !(weight.qty > 0)) throw new Error("Amounts must be greater than zero");
+  const gramsPerCup = convert(weight.qty, weight.unit, "g") / convert(volume.qty, volume.unit, "cup");
+  if (gramsPerCup > 5000) throw new Error("That doesn't look right — check the amounts");
+  const others = state.conversions.filter((c) => c.name.toLowerCase() !== clean.toLowerCase());
+  return { ...state, conversions: [...others, { id: newId("cv"), name: clean, gramsPerCup }] };
+}
+
+export function deleteConversion(state: AppState, id: string): AppState {
+  return { ...state, conversions: state.conversions.filter((c) => c.id !== id) };
 }

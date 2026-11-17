@@ -19,6 +19,7 @@ const PATHS: Record<string, string> = {
   print: "M7 8V3h10v5M7 17H4v-7h16v7h-3M7 14h10v7H7z",
   download: "M12 3v12m0 0-4-4m4 4 4-4M4 19h16",
   trash: "M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3",
+  scale: "M12 3v18M5 7h14M5 7l-3 7a3 3 0 0 0 6 0L5 7Zm14 0-3 7a3 3 0 0 0 6 0l-3-7ZM8 21h8",
   lock: "M6 11h12v10H6zM8 11V7a4 4 0 0 1 8 0v4",
 };
 

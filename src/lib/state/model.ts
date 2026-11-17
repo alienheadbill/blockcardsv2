@@ -11,9 +11,10 @@ import type { MealService } from "../menu/types";
 import type { PrepTask, PrepTemplate } from "../prep";
 import { makeRecipe, starterRecipes, type Recipe } from "../recipes/recipes";
 import type { SpecialRequest, StandingRequest } from "../requests";
+import type { CustomConversion } from "../recipes/convert";
 import type { WorkspaceId } from "../workspaces";
 
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 export interface AuditEvent {
   id: string;
@@ -106,6 +107,8 @@ export interface AppState {
   /** "demo" = fictional data, browser storage. Facility mode requires the approved server deployment. */
   mode: "demo";
   activeWorkspace: WorkspaceId | null;
+  /** The cook's own weight↔volume conversions ("1 cup of X weighs Y"). Not workspace data — just kitchen facts. */
+  conversions: CustomConversion[];
   workspaces: { stann: StAnnData; truck: TruckData; home: HomeData };
 }
 
@@ -219,7 +222,7 @@ export function initialState(): AppState {
     ],
   };
 
-  return { schemaVersion: SCHEMA_VERSION, mode: "demo", activeWorkspace: null, workspaces: { stann, truck, home } };
+  return { schemaVersion: SCHEMA_VERSION, mode: "demo", activeWorkspace: null, conversions: [], workspaces: { stann, truck, home } };
 }
 
 export function audit(action: string, detail: string): AuditEvent {
@@ -274,6 +277,10 @@ export function migrate(raw: any): any {
     const settings = raw.workspaces?.stann?.settings;
     if (settings && Array.isArray(settings.units) && settings.units.join("|") === DEFAULT_UNITS.join("|")) settings.units = [];
     raw.schemaVersion = 3;
+  }
+  if (raw.schemaVersion === 3) {
+    raw.conversions ??= [];
+    raw.schemaVersion = 4;
   }
   return raw;
 }

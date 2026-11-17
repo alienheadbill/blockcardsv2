@@ -73,6 +73,17 @@ side of the room, and optionally the unit. Tap **✓ Diet checked** once you (or
 have looked at the diet order — no initials or sign-off. Tick **Repeat every day** for someone who gets the
 same thing daily; the app then offers "Add for today" each day until you stop it.
 
+## Converting measurements
+
+- Tap **Convert** at the top of any page: type an amount, pick a unit, and (optionally) the ingredient.
+  You'll see it in tsp, tbsp, fl oz, cups, pints, quarts, gallons, oz, lb, g, kg, ml and L.
+- On a recipe, tap any ingredient amount to convert it, or switch the whole list between
+  **Kitchen**, **As written** and **Metric**.
+- **oz** always means weight and **fl oz** means volume. 8 fl oz = 1 cup exactly, but 8 oz *by weight*
+  of dry elbow macaroni is about 2 cups.
+- Cups ↔ weight uses typical values for ~60 common ingredients (USDA / standard kitchen charts), marked "≈".
+  Weigh something once and use **Save my own conversion** — your numbers then win over the built-in ones.
+
 ## First-time setup
 
 - Rotation is set and confirmed: Week 1 started Sunday, Nov 8, 2026 (Mon Nov 16 = Week 2).

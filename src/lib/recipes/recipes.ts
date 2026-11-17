@@ -1,5 +1,5 @@
 import { newId, nowISO } from "../ids";
-import { formatQty, scaleQuantity } from "./units";
+import { formatAmount, scaleQuantity, type UnitMode } from "./units";
 
 export interface Ingredient {
   id: string;
@@ -40,14 +40,14 @@ export interface Recipe {
   updatedAt: string;
 }
 
-export function scaleRecipe(recipe: Recipe, portions: number, keepUnits = false) {
+export function scaleRecipe(recipe: Recipe, portions: number, mode: UnitMode | boolean = "kitchen") {
   if (!Number.isFinite(portions) || portions <= 0) throw new Error("Portions must be greater than zero");
   const factor = portions / recipe.yieldPortions;
   return {
     factor,
     ingredients: recipe.ingredients.map((ing) => {
-      const s = scaleQuantity(ing.qty, ing.unit, factor, keepUnits);
-      return { ...ing, qty: s.qty, unit: s.unit, display: `${formatQty(s.qty)} ${s.unit}` };
+      const s = scaleQuantity(ing.qty, ing.unit, factor, mode);
+      return { ...ing, qty: s.qty, unit: s.unit, display: formatAmount(s.qty, s.unit) };
     }),
   };
 }
