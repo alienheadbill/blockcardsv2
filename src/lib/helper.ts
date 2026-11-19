@@ -90,7 +90,7 @@ export function checkService(state: AppState, date: ISODate, meal: MealService, 
   // requests
   const reqs = d.requests.filter((r) => r.date === date && r.meal === meal && r.status !== "cancelled");
   const unchecked = reqs.filter((r) => r.verification === "unverified").length;
-  if (unchecked) notes.push({ id: "req-unchecked", level: "info", text: `${unchecked} request(s) not diet-checked yet.`, href: `/stann/counts${q}` });
+  if (unchecked && d.settings.requestDietCheck) notes.push({ id: "req-unchecked", level: "info", text: `${unchecked} request(s) not diet-checked yet.`, href: `/stann/counts${q}` });
   const flagged = reqs.filter((r) => r.verification === "flagged").length;
   if (flagged) notes.push({ id: "req-flagged", level: "warn", text: `${flagged} request(s) flagged for staff review.`, href: `/stann/counts${q}` });
 

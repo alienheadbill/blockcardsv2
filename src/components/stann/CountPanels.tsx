@@ -24,11 +24,18 @@ export function TexturesCard({
   items,
   locked,
   onTap,
+  onTapMeal,
+  onRename,
+  byChoice,
 }: {
   session: C.CountSession;
   items: Record<string, number>;
   locked: boolean;
   onTap: (levelId: string, target: string) => void;
+  /** A texture meal that isn't the entrée (its own tally). */
+  onTapMeal: (levelId: string) => void;
+  onRename: (o: C.CountOption) => void;
+  byChoice: Record<string, number>;
 }) {
   const [more, setMore] = useState(false);
   const [guide, setGuide] = useState(false);
@@ -46,6 +53,43 @@ export function TexturesCard({
         </Button>
       }
     >
+      <div className="mb-3 rounded-xl border-2 border-dashed border-line p-2">
+        <p className="text-sm font-bold">Texture meals — something else, not the entrée</p>
+        <p className="mb-2 text-xs text-muted">Counts a meal in its own tally (shows on Production). Tap ✎ to name what you made.</p>
+        <div className="grid grid-cols-3 gap-2">
+          {levels.map((id) => {
+            const l = iddsi(id);
+            const opt = session.options.find((o) => o.key === C.textureMealKey(id));
+            const n = opt ? byChoice[opt.key] ?? 0 : 0;
+            return (
+              <div key={id} className="relative">
+                <button
+                  type="button"
+                  disabled={locked}
+                  onClick={() => onTapMeal(id)}
+                  aria-label={`Count one ${opt?.label ?? `${l.name} meal`} (separate texture meal). Now ${n}.`}
+                  className={`flex min-h-16 w-full flex-col justify-center rounded-xl border-2 px-2 text-left active:scale-[0.97] disabled:opacity-50 ${n ? "border-primary bg-accent-soft/50" : "border-line bg-surface"}`}
+                >
+                  <span className="flex items-center gap-1 text-[11px] font-bold text-muted">
+                    <Swatch color={l.color} /> L{l.level}
+                  </span>
+                  <span className="flex items-baseline justify-between gap-1">
+                    <span className="line-clamp-2 pr-4 text-xs font-bold leading-tight">{opt ? opt.label.replace(/ \(L\d\) meal$/, "") : l.short}</span>
+                    <span className="text-lg font-extrabold tabular-nums">{n}</span>
+                  </span>
+                </button>
+                {opt && !locked && (
+                  <button type="button" onClick={() => onRename(opt)} aria-label={`Rename ${opt.label}`} className="absolute right-0.5 top-0.5 flex h-8 w-8 items-center justify-center rounded-full text-sm text-muted">
+                    ✎
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <p className="mb-1 text-sm font-bold">Texture versions of the entrées</p>
       <p className="mb-2 text-xs text-muted">
         For a slip with a texture (e.g. “IDDSI Level 5: Minced &amp; Moist”), tap here <strong>instead of</strong> the big box — it counts the meal in the tally and marks the texture. Undo takes both back.
       </p>

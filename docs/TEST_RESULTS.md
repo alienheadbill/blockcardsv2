@@ -4,6 +4,14 @@ All runs below were executed in this repository's cloud dev container (Linux, No
 Playwright's iPhone 13 profile). **No WebKit (Safari) engine is available here**, so nothing below is a real
 Safari run — see "Not tested".
 
+## 2026-11-19 — Separate texture meals; no diet check on requests
+
+| Suite | Result |
+|---|---|
+| Unit tests | ✅ **119 passed** |
+| E2E server build | ✅ 8 passed, 1 skipped (static-only) |
+| E2E static build | ✅ **9 passed** |
+
 ## 2026-11-19 — Texture taps count, made-ahead prep, kitchen helper
 
 | Suite | Result |

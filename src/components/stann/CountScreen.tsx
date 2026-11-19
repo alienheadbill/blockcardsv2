@@ -446,7 +446,20 @@ function ActiveCount({
       <TexturesCard
         session={session}
         items={summary.items}
+        byChoice={summary.byChoice}
         locked={locked}
+        onRename={setRenaming}
+        onTapMeal={(levelId) => {
+          const key = `meal:${levelId}`;
+          const now = performance.now();
+          if (C.isDuplicateTap(lastTap.current, key, now, settings.tapGuardMs ?? 300)) {
+            setIgnoredAt(now);
+            return;
+          }
+          lastTap.current = { key, at: now };
+          if (ignoredAt) setIgnoredAt(0);
+          if (update((s) => C.tapTextureMeal(s, levelId))) buzz();
+        }}
         onTap={(levelId, target) => {
           // one tap = one slip for the entrée + its texture (same double-tap guard as the boxes)
           const key = `${levelId}:${target}`;
@@ -743,7 +756,7 @@ function ReviewSheet({ open, onClose, session, requestTotal }: { open: boolean; 
       <table className="w-full text-base">
         <tbody>
           {session.options
-            .filter((o) => (summary.byChoice[o.key] ?? 0) > 0 || o.role === "main" || o.role === "alt")
+            .filter((o) => (summary.byChoice[o.key] ?? 0) > 0 || o.role === "main" || o.role === "alt" || o.role === "texture")
             .map((o) => (
               <tr key={o.key} className="border-b border-line">
                 <td className="py-1.5 pr-2">{o.label}</td>

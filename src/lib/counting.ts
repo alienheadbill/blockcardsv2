@@ -13,7 +13,7 @@
 import type { ISODate } from "./dates";
 import { newId, nowISO } from "./ids";
 import { isEntree, type MealService, type MenuItem, type MenuItemKind } from "./menu/types";
-import { DRINKS_TARGET, parseTextureKey, textureKey, textureLabel } from "./iddsi";
+import { DRINKS_TARGET, iddsi, parseTextureKey, textureKey, textureLabel } from "./iddsi";
 
 export const CUSTOM_CHOICE = "custom";
 export const UNRESOLVED_CHOICE = "unresolved";
@@ -24,7 +24,8 @@ export interface CountOption {
   key: string;
   label: string;
   /** "main" | "alt" for menu entrées; "custom" / "unresolved" for the special panels. */
-  role: "main" | "alt" | "custom" | "unresolved";
+  /** "texture" = a separate texture-modified meal (e.g. a purée that isn't the entrée). */
+  role: "main" | "alt" | "custom" | "unresolved" | "texture";
   /** Full printed menu line this box came from, if any (used for suggestions). */
   menuText?: string;
 }
@@ -257,6 +258,27 @@ export function tapTexturedSlip(session: CountSession, levelId: string, box: str
   return append(s, { type: "item", itemKey: key, slipId, group });
 }
 
+export const textureMealKey = (levelId: string) => `tm_${levelId}`;
+
+/**
+ * Count one texture-modified meal that ISN'T the entrée (e.g. a purée the cook makes
+ * from something else). It's a meal in its own tally, so it adds to the meal total.
+ */
+export function tapTextureMeal(session: CountSession, levelId: string): CountSession {
+  assertOpen(session);
+  const key = textureMealKey(levelId);
+  let s = session;
+  if (!s.options.some((o) => o.key === key)) {
+    const l = iddsi(levelId);
+    const opt: CountOption = { key, label: `${l.name} (L${l.level}) meal`, role: "texture" };
+    const firstSpecial = s.options.findIndex((o) => o.role === "custom" || o.role === "unresolved");
+    const options = [...s.options];
+    options.splice(firstSpecial < 0 ? options.length : firstSpecial, 0, opt);
+    s = { ...s, options };
+  }
+  return tapSlip(s, key);
+}
+
 /** Texture counts per tally box (and for drinks), for the count screen and production. */
 export function textureCounts(session: CountSession, items: Record<string, number>): Record<string, { levelId: string; count: number }[]> {
   const out: Record<string, { levelId: string; count: number }[]> = {};
@@ -310,7 +332,7 @@ export function addOption(session: CountSession, label: string): CountSession {
 export function removeOption(session: CountSession, key: string): CountSession {
   assertOpen(session);
   const opt = session.options.find((o) => o.key === key);
-  if (!opt || (opt.role !== "main" && opt.role !== "alt")) throw new Error("Only tally boxes you wrote can be removed");
+  if (!opt || (opt.role !== "main" && opt.role !== "alt" && opt.role !== "texture")) throw new Error("Only tally boxes you wrote can be removed");
   const used = session.events.some((e) => (e.type === "slip" || e.type === "resolve" ? e.choice === key : e.type === "correction" && e.target.kind === "slip" && e.target.choice === key));
   if (used) throw new Error("This box has counts on it — undo or correct them first, or just rename it");
   const remaining = session.options.filter((o) => o.key !== key);

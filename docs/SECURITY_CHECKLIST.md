@@ -44,9 +44,8 @@ under "Before real resident data" is done and signed off by the facility.
 
 **Clinical safety**
 - [ ] Diet, texture (IDDSI), fluid and allergy data come **only** from the facility's authoritative system — never typed in from likes/dislikes.
-- [ ] App never approves substitutions, texture changes or allergy exceptions. Kitchen practice is that the cook,
-      nurse or dietary aide checks the diet order; the app records a one-tap "Diet checked" (with time) and
-      requires no separate sign-off. Facility mode should tie that tap to the logged-in user automatically.
+- [ ] App never approves substitutions, texture changes or allergy exceptions. This kitchen doesn't diet-check requests
+      in the app, so that step is off by default (a setting can turn it on). Facility mode should tie that tap to the logged-in user automatically.
 - [ ] Contradictory or missing diet information shows as "Flagged for staff review" and blocks Ready/Served.
 - [ ] Food-safety temperatures and holding/cooling procedures configured from the facility's approved policy.
 

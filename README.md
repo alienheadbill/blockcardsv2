@@ -109,7 +109,10 @@ as four steps — **Count → Production → Prep → Ready** — each marked do
    any time (the count stays), or **+ Add a tally box** mid-count.
 3. Build today's prep list right there: the **Prep list** card shows the menu for today, tomorrow and the day
    after — tap an item to add it to today's list, type your own, and check things off.
-4. **Textures (IDDSI)**: for a slip with a texture, tap Puréed (L4), Minced & Moist (L5) or Soft & Bite-Sized (L6)
+4. **Texture meals that aren't the entrée** (e.g. a purée made from something else): tap Puréed / Minced & Moist /
+   Soft & Bite-Sized under "Texture meals" at the top of the Textures card. Each counts a meal in its own tally;
+   tap ✎ to name what you made. It gets its own line on Production.
+5. **Textures (IDDSI)** that *are* the entrée: for a slip with a texture, tap Puréed (L4), Minced & Moist (L5) or Soft & Bite-Sized (L6)
    under the entrée **instead of** the big box — it counts the meal in the tally and marks the texture (Undo takes
    both back), as the slips say (Liquidised L3 and Easy to Chew L7 under "More levels"; "Level guide" explains each, with thickened-drink
    levels on a separate Drinks tab for reference only). These
@@ -127,8 +130,8 @@ as four steps — **Count → Production → Prep → Ready** — each marked do
    If you happen to know the stack size you can enter it under Count tools, but you don't have to.
 
 Special requests go under the count, like the notebook. Enter the room number and tap **L** or **R** for the
-side of the room, and optionally the unit. Tap **✓ Diet checked** once you (or the nurse / dietary aide)
-have looked at the diet order — no initials or sign-off. Tick **Repeat every day** for someone who gets the
+side of the room, and optionally the unit. There's no diet-check step (it can be switched on in Reports →
+Kitchen settings if a kitchen wants it). Tick **Repeat every day** for someone who gets the
 same thing daily; the app then offers "Add for today" each day until you stop it.
 
 ## Converting measurements

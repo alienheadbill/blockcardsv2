@@ -25,6 +25,13 @@ test("count flows into production, prep and service readiness", async ({ page })
   await page.getByRole("button", { name: /^Count one Chicken Pot Pie, Minced & Moist level 5/ }).click();
   await expect(page.getByTestId("total-meals")).toHaveText("12");
   await expect(page.getByTestId("count-alt")).toHaveText("8");
+  // A purée that ISN'T the entrée: its own tally, renamed to what was made
+  await page.getByRole("button", { name: /^Count one Puréed meal \(separate texture meal\)/ }).click();
+  await expect(page.getByTestId("total-meals")).toHaveText("13");
+  await page.getByRole("button", { name: "Rename Puréed (L4) meal" }).click();
+  await page.getByRole("dialog", { name: "Rename tally box" }).getByRole("textbox").fill("Puréed ham & green beans");
+  await page.getByRole("button", { name: "Save name" }).click();
+  await expect(page.getByRole("button", { name: /^Count one Puréed ham & green beans \(separate texture meal\)\. Now 1/ })).toBeVisible();
   // Drinks aren't counted — they're reference-only in the level guide
   await expect(page.getByRole("button", { name: /drink, level/ })).toHaveCount(0);
   await page.getByRole("region", { name: "Textures (IDDSI)" }).getByRole("button", { name: "Level guide" }).click();
@@ -40,12 +47,13 @@ test("count flows into production, prep and service readiness", async ({ page })
   await expect(prepCard.getByRole("list", { name: "Today's prep list" }).getByRole("listitem")).toHaveCount(2);
   await page.getByRole("button", { name: "Review & finish" }).click();
   await page.getByRole("button", { name: "Mark count complete" }).click();
-  await expect(page.getByRole("navigation", { name: "Service steps" }).getByRole("link", { name: /Count: 12 done/ })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Service steps" }).getByRole("link", { name: /Count: 13 done/ })).toBeVisible();
 
   // Production
   await page.getByRole("link", { name: "Production →" }).click();
   await expect(page.getByTestId("servings-Chicken Pot Pie")).toHaveText("8");
   await expect(page.getByText("1 Puréed (L4) · 1 Minced & Moist (L5)")).toBeVisible();
+  await expect(page.getByTestId("servings-Puréed ham & green beans")).toHaveText("1");
   const potPie = page.getByRole("region", { name: "Chicken Pot Pie" });
   await expect(potPie.getByText("Eyeballed — no portion size")).toBeVisible();
   await potPie.getByRole("button", { name: "Add portion / recipe (optional)" }).click();
@@ -78,7 +86,7 @@ test("count flows into production, prep and service readiness", async ({ page })
   await sheet.getByRole("combobox").selectOption({ label: "Puréed (L4)" });
   await sheet.getByRole("radio", { name: "Late admission" }).click();
   await sheet.getByRole("button", { name: "Save change" }).click();
-  await expect(page.getByTestId("total-meals")).toHaveText("13");
+  await expect(page.getByTestId("total-meals")).toHaveText("14");
   await expect(page.getByText("Count complete")).toBeVisible(); // still finished
   await expect(page.getByRole("list", { name: "Changes to this count" })).toContainText("+1 Chicken Pot Pie");
   await expect(page.getByRole("list", { name: "Changes to this count" })).toContainText("Late admission");

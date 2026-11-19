@@ -24,6 +24,8 @@ const STATUS_TONE: Record<R.ProductionStatus, "neutral" | "warn" | "ok" | "accen
 export function RequestsPanel({ date, meal, countSessionId }: { date: ISODate; meal: MealService; countSessionId?: string }) {
   const all = useAppState((s) => s.workspaces.stann.requests);
   const idType = useAppState((s) => s.workspaces.stann.settings.identifierType);
+  // Diet-checking requests is optional (off by default — the kitchen doesn't do it).
+  const dietCheck = useAppState((s) => s.workspaces.stann.settings.requestDietCheck ?? false);
   const requests = useMemo(() => all.filter((r) => r.date === date && r.meal === meal), [all, date, meal]);
   const groups = useMemo(() => R.groupRequests(requests), [requests]);
   const standing = useAppState((s) => s.workspaces.stann.standingRequests ?? []);
@@ -93,10 +95,12 @@ export function RequestsPanel({ date, meal, countSessionId }: { date: ISODate; m
                     </p>
                     {r.notes && <p className="text-sm text-muted">Note: {r.notes}</p>}
                     <div className="mt-1 flex flex-wrap gap-1">
-                      <Badge tone={r.verification === "verified" ? "ok" : r.verification === "flagged" ? "danger" : "warn"}>
-                        {R.VERIFICATION_LABELS[r.verification]}
-                        {r.verifiedBy ? ` (${r.verifiedBy})` : ""}
-                      </Badge>
+                      {(dietCheck || r.verification === "flagged") && (
+                        <Badge tone={r.verification === "verified" ? "ok" : r.verification === "flagged" ? "danger" : "warn"}>
+                          {R.VERIFICATION_LABELS[r.verification]}
+                          {r.verifiedBy ? ` (${r.verifiedBy})` : ""}
+                        </Badge>
+                      )}
                       <Badge tone={STATUS_TONE[r.status]}>{R.STATUS_LABELS[r.status]}</Badge>
                       {r.standingId && <Badge>daily</Badge>}
                     </div>
@@ -114,16 +118,17 @@ export function RequestsPanel({ date, meal, countSessionId }: { date: ISODate; m
                         → {R.STATUS_LABELS[NEXT_STATUS[r.status]!]}
                       </Button>
                     )}
-                    {r.verification !== "verified" ? (
-                      <Button size="sm" variant="outline" onClick={() => act((s) => ops.updateRequest(s, r.id, (x) => R.markVerified(x), "request.verify"))}>
-                        ✓ Diet checked
-                      </Button>
-                    ) : (
-                      <Button size="sm" variant="ghost" onClick={() => act((s) => ops.updateRequest(s, r.id, R.unmarkVerified, "request.unverify"))}>
-                        Uncheck
-                      </Button>
-                    )}
-                    {r.verification !== "flagged" && (
+                    {dietCheck &&
+                      (r.verification !== "verified" ? (
+                        <Button size="sm" variant="outline" onClick={() => act((s) => ops.updateRequest(s, r.id, (x) => R.markVerified(x), "request.verify"))}>
+                          ✓ Diet checked
+                        </Button>
+                      ) : (
+                        <Button size="sm" variant="ghost" onClick={() => act((s) => ops.updateRequest(s, r.id, R.unmarkVerified, "request.unverify"))}>
+                          Uncheck
+                        </Button>
+                      ))}
+                    {dietCheck && r.verification !== "flagged" && (
                       <Button size="sm" variant="ghost" onClick={() => setFlagFor(r)}>
                         Flag
                       </Button>
@@ -232,7 +237,7 @@ function AddRequestSheet({
           submit();
         }}
       >
-        <Banner>Demo mode: use fictional rooms only (e.g. “Demo 104”). A room number is never a diet source — check the current diet order.</Banner>
+        <Banner>Demo mode: use fictional rooms only (e.g. “Demo 104”).</Banner>
         {idType === "room" ? (
           <div className="flex items-end gap-2">
             <Field label="Room">

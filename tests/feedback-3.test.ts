@@ -34,6 +34,29 @@ describe("texture taps count in the tally", () => {
   });
 });
 
+describe("texture meals that aren't the entrée", () => {
+  it("count as meals in their own tally and get their own production line", () => {
+    let st = ops.startSession(initialState(), "2026-11-16", "dinner");
+    st = ops.updateSession(st, "2026-11-16", "dinner", (x) => {
+      x = C.tapSlip(x, ALT);
+      x = C.tapTextureMeal(x, "f4");
+      x = C.tapTextureMeal(x, "f4");
+      return C.renameOption(x, C.textureMealKey("f4"), "Puréed ham & green beans");
+    });
+    const s = ops.getSession(st, "2026-11-16", "dinner")!;
+    const sum = C.summarize(s);
+    expect(sum.totalMeals).toBe(3);
+    expect(sum.byChoice[C.textureMealKey("f4")]).toBe(2);
+    // placed with the tally boxes, before Custom / Unclear
+    expect(s.options.map((o) => o.role)).toEqual(["main", "alt", "texture", "custom", "unresolved"]);
+    st = ops.ensurePlan(st, "2026-11-16", "dinner");
+    expect(ops.productionContext(st, "2026-11-16", "dinner").plan!.lines.map((l) => l.label)).toContain("Puréed ham & green beans");
+    // switching someone from the entrée to the purée works with Late admit / change
+    const sw = C.adjustCount(s, { kind: "switch", from: ALT, to: C.textureMealKey("f4"), qty: 1 }, "Diet or texture change");
+    expect(C.summarize(sw).byChoice[C.textureMealKey("f4")]).toBe(3);
+  });
+});
+
 describe("made-ahead prep", () => {
   const D = "2026-11-19";
   const T = addDays(D, 1);

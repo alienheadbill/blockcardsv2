@@ -501,7 +501,7 @@ export function productionContext(state: AppState, date: ISODate, meal: MealServ
   const session = d.counts[C.sessionKey(date, meal)];
   const summary = session ? C.summarize(session) : null;
   const requests = R.groupRequests(d.requests.filter((r) => r.date === date && r.meal === meal));
-  const boxes = session ? session.options.filter((o) => o.role === "main" || o.role === "alt").map((o) => ({ key: o.key, label: o.label })) : [];
+  const boxes = session ? session.options.filter((o) => o.role === "main" || o.role === "alt" || o.role === "texture").map((o) => ({ key: o.key, label: o.label })) : [];
   const ctx: PR.LineContext = {
     byChoice: summary?.byChoice ?? {},
     items: summary?.items ?? {},

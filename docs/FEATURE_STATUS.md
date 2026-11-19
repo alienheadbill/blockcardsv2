@@ -19,7 +19,8 @@
 | IDDSI texture counters per entrée (L3–L7), level guide with a reference-only Drinks tab | ✅ | Counts what the slip says; feeds Production. Drinks not counted (cook doesn't handle them) |
 | Double-tap guard, compact mode, haptics (Android) | ✅ | iPhone can't vibrate |
 | Count by unit | ✅ | Off by default |
-| Special requests, diet-checked, flags, daily regulars | ✅ | Fictional rooms only |
+| Special requests, daily regulars | ✅ | Fictional rooms only. Diet-check step is optional, off by default |
+| Separate texture meals (purée etc. that isn't the entrée), own tally + production line | ✅ | |
 | Production calculator (portions, yield, buffer, recipes, overrides) | ✅ | Portion sizes optional — lines show servings when eyeballed |
 | Prep from production, templates, suggestions | ✅ | |
 | Service readiness checklist | ✅ | |

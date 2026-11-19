@@ -72,9 +72,9 @@ test("first-release checklist", async ({ page }, testInfo) => {
   await page.getByLabel("Requested item").fill("Grilled cheese");
   await page.getByRole("button", { name: "Add request" }).click();
   await expect(page.getByText("Grilled cheese — Demo 104R")).toBeVisible();
-  await expect(page.getByText("Not yet checked")).toBeVisible();
-  await page.getByRole("button", { name: "✓ Diet checked" }).click(); // one tap, no sign-off
-  await expect(page.getByText("Diet checked", { exact: true })).toBeVisible();
+  // no diet-check step on requests (off by default)
+  await expect(page.getByText("Not yet checked")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "✓ Diet checked" })).toHaveCount(0);
   await expect(page.getByTestId("total-meals")).toHaveText("45"); // requests are separate
 
   await page.screenshot({ path: testInfo.outputPath("count-screen.png"), fullPage: true });

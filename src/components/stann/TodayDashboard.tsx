@@ -160,7 +160,7 @@ function ServiceCommand({ state, date, meal, now }: { state: AppState; date: ISO
   const attention: { text: string; href: string }[] = [];
   if (status.count && status.count.unresolved) attention.push({ text: `${status.count.unresolved} unclear slip(s) to sort out`, href: `/stann/counts${q}` });
   if (status.requests.flagged) attention.push({ text: `${status.requests.flagged} request(s) flagged for staff review`, href: `/stann/counts${q}` });
-  if (status.requests.unchecked) attention.push({ text: `${status.requests.unchecked} request(s) not diet-checked yet`, href: `/stann/counts${q}` });
+  if (status.requests.unchecked && d.settings.requestDietCheck) attention.push({ text: `${status.requests.unchecked} request(s) not diet-checked yet`, href: `/stann/counts${q}` });
   if (status.production?.needsPortion) attention.push({ text: `${status.production.needsPortion} production item(s) need a portion size`, href: `/stann/production${q}` });
   if (status.temps.outOfRange) attention.push({ text: `${status.temps.outOfRange} temperature reading(s) outside your limits`, href: `/stann/ready${q}` });
   const overdue = d.prep.filter((t) => P.visible(t) && !t.done && t.date < date && (!t.meal || t.meal === meal));

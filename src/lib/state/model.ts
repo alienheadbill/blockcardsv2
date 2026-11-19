@@ -69,6 +69,8 @@ export interface StAnnData extends Common {
     defaultMeal: MealService | "auto";
     /** Also show the menu's sides/desserts/fruit as counters (off: only entrées + modifications). */
     countMenuSides: boolean;
+    /** Show the "Diet checked" step on special requests (off by default). */
+    requestDietCheck?: boolean;
     /** Vibrate on each count tap where the phone supports it (not iPhone Safari). */
     hapticFeedback?: boolean;
     /** Smaller count screen so both boxes and Undo fit without scrolling. */
@@ -151,6 +153,7 @@ export const DEFAULT_STANN_SETTINGS: StAnnData["settings"] = {
   defaultMeal: "dinner",
   countMenuSides: false,
   hapticFeedback: true,
+  requestDietCheck: false,
   compactCounting: false,
   tapGuardMs: 300,
   keepTapLogDays: 120,

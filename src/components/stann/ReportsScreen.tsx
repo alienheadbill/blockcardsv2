@@ -192,6 +192,10 @@ function Settings() {
           <span className="font-semibold">Show tally marks on count panels</span>
         </label>
         <label className="flex items-center gap-3">
+          <input type="checkbox" className="h-6 w-6" checked={settings.requestDietCheck ?? false} onChange={(e) => save({ requestDietCheck: e.target.checked })} />
+          <span className="font-semibold">Diet-check special requests (adds a “Diet checked” step)</span>
+        </label>
+        <label className="flex items-center gap-3">
           <input type="checkbox" className="h-6 w-6" checked={settings.hapticFeedback ?? true} onChange={(e) => save({ hapticFeedback: e.target.checked })} />
           <span className="font-semibold">Vibrate on each count tap (Android; iPhone doesn&apos;t allow it)</span>
         </label>
