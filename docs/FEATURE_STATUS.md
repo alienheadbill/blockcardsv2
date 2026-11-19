@@ -11,6 +11,10 @@
 | Meal counting (event log, undo, corrections, unclear slips, modifications, review/complete) | ✅ | |
 | Write-your-own tally boxes | ✅ | |
 | Late admits / discharges / switches on open or finished counts, with reasons and a visible change list | ✅ | Count stays finished; Production updates live |
+| Texture taps count the slip in the tally (grouped undo) | ✅ | |
+| Made-ahead prep: finishing ahead hides the other day's task and suggests the next step | ✅ | Untick restores |
+| Kitchen helper (rule-based checks on Count and Today) | ✅ | No AI, offline, nothing leaves the phone |
+| AI assistant (Claude) | ⬜ | Needs the owner's decision: API key + cost, and data would leave the phone — see roadmap |
 | Prep list built while counting (menu for today + 2 days, tap to add, check off) | ✅ | Replaced the Notes box |
 | IDDSI texture counters per entrée (L3–L7), level guide with a reference-only Drinks tab | ✅ | Counts what the slip says; feeds Production. Drinks not counted (cook doesn't handle them) |
 | Double-tap guard, compact mode, haptics (Android) | ✅ | iPhone can't vibrate |

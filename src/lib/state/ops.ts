@@ -215,13 +215,34 @@ export function updatePrepTask(state: AppState, ws: WorkspaceId, id: string, fn:
   });
 }
 
+/** Tick a prep task done / not done, hiding or restoring tasks it made ahead for. */
+export function togglePrep(state: AppState, ws: WorkspaceId, id: string): AppState {
+  const before = state.workspaces[ws].prep;
+  const task = before.find((t) => t.id === id);
+  if (!task) throw new Error("Task not found");
+  const after = P.togglePrepInList(before, id);
+  const covered = after.filter((t, i) => t.coveredBy && !before[i]!.coveredBy).length;
+  return updateWorkspace(state, ws, (d) => ({ ...d, prep: after }), {
+    action: "prep.toggle",
+    detail: `${task.title}${task.done ? " ↺ not done" : " ✓ done"}${covered ? ` (covers ${covered} other task(s))` : ""}`,
+  });
+}
+
 export function deletePrepTask(state: AppState, ws: WorkspaceId, id: string): AppState {
   const cur = state.workspaces[ws].prep.find((t) => t.id === id);
   return updateWorkspace(state, ws, (d) => ({ ...d, prep: d.prep.filter((t) => t.id !== id) }), { action: "prep.delete", detail: cur?.title ?? id });
 }
 
 export function acceptSuggestion(state: AppState, ws: WorkspaceId, s: P.PrepSuggestion): AppState {
-  return addPrepTask(state, ws, { date: s.date, meal: s.meal, title: s.title, holdingReminder: s.holdingReminder, source: "suggested", suggestionKey: s.key });
+  return addPrepTask(state, ws, {
+    date: s.date,
+    meal: s.meal,
+    title: s.title,
+    holdingReminder: s.holdingReminder,
+    source: "suggested",
+    suggestionKey: s.key,
+    ...(s.target ? { target: s.target } : {}),
+  });
 }
 
 export function dismissSuggestion(state: AppState, ws: WorkspaceId, key: string): AppState {
@@ -719,7 +740,7 @@ export function serviceStatus(state: AppState, date: ISODate, meal: MealService)
   const results = plan ? plan.lines.map((l) => ({ line: l, res: PR.computeLine(l, ctx) })) : [];
   // Portion sizes are optional (lots of things are eyeballed), so a missing one is never flagged.
   const needsPortion = 0;
-  const prep = d.prep.filter((t) => t.date === date && (t.meal === meal || t.meal === null));
+  const prep = d.prep.filter((t) => P.visible(t) && t.date === date && (t.meal === meal || t.meal === null));
   const prepDone = prep.filter((t) => t.done).length;
   const ready = RD.readinessProgress(d.settings.checklist, d.readiness?.[key]);
   const temps = (d.temps ?? []).filter((t) => t.date === date && t.meal === meal && !t.voided);

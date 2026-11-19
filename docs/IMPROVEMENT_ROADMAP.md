@@ -37,6 +37,21 @@ Status: ✅ done · 🟡 partial · ⬜ planned · ⛔ blocked
 | IDDSI textures (Puréed L4, Minced & Moist L5, Soft & Bite-Sized L6; Liquidised L3, Easy to Chew L7; drinks L1–L4) with level guide; shown in Production and prep tasks | ✅ | `lib/iddsi.ts`, `lib/counting.ts`, `stann/CountPanels.tsx` |
 | Fix: sticky bars could reappear under the finger after typing | ✅ | `AppShell.tsx` |
 
+### Cook feedback (2026-11-19) ✅
+
+| Item | Status | Files |
+|---|---|---|
+| Texture buttons count the slip (one tap = meal + texture; undo both) | ✅ | `lib/counting.ts` `tapTexturedSlip`, grouped `undo` |
+| Made-ahead prep with next-step suggestions; covered tasks hidden | ✅ | `lib/prep.ts` `madeAhead`, `togglePrepInList`, `pendingSuggestions` |
+| Kitchen helper checks | ✅ | `lib/helper.ts`, `stann/CountPanels.tsx` `HelperStrip`, Today |
+
+### Optional AI assistant (decision needed)
+
+A chat-style assistant (e.g. Claude) could review a count or prep list in plain language. Trade-offs:
+it costs money per use (the owner's API key), needs internet, and sends kitchen data off the phone — so
+it must stay off for anything involving real residents. The built-in helper covers the "does this look
+right" checks offline and for free; an AI layer would sit on top, clearly labeled, only if the owner wants it.
+
 ### Possible integrations (need input from the facility)
 
 - **MealSuite**: if it can export tray tickets / production counts (CSV or PDF), the app could import counts

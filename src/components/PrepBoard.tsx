@@ -29,7 +29,9 @@ export function PrepBoard({
   /** Only show tasks for these meals (plus tasks with no meal). Others are behind a toggle. */
   meals?: readonly MealService[];
 }) {
-  const raw = useAppState((s) => s.workspaces[ws]);
+  const all = useAppState((s) => s.workspaces[ws]);
+  // tasks covered by something made ahead are hidden everywhere
+  const raw = useMemo(() => ({ ...all, prep: all.prep.filter(P.visible) }), [all]);
   const [showOther, setShowOther] = useState(false);
   const mine = (t: P.PrepTask) => !meals || !t.meal || meals.includes(t.meal);
   const hiddenCount = raw.prep.filter((t) => !mine(t) && t.date >= baseDate && t.date <= addDays(baseDate, 2)).length;
@@ -118,7 +120,7 @@ function TaskList({ tasks, ws, onEdit, showDate }: { tasks: P.PrepTask[]; ws: Wo
               role="checkbox"
               aria-checked={t.done}
               aria-label={`${t.done ? "Mark not done" : "Mark done"}: ${t.title}`}
-              onClick={() => act((s) => ops.updatePrepTask(s, ws, t.id, P.toggleDone, "prep.toggle"))}
+              onClick={() => act((s) => ops.togglePrep(s, ws, t.id))}
               className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border-2 text-2xl font-black ${t.done ? "border-ok bg-ok text-white" : "border-ink/60 bg-surface"}`}
             >
               {t.done ? "✓" : ""}
@@ -130,6 +132,11 @@ function TaskList({ tasks, ws, onEdit, showDate }: { tasks: P.PrepTask[]; ws: Wo
                 {t.startTime && <Badge tone="accent">⏱ {t.startTime}</Badge>}
                 {t.meal && <Badge>{MEAL_LABELS[t.meal]}</Badge>}
                 {t.source === "suggested" && <Badge>suggested</Badge>}
+                {t.target && t.target.date > t.date && t.target.stage === "make" && (
+                  <Badge tone="accent">
+                    {t.done ? "made ahead" : "ahead"} for {formatShort(t.target.date)} {MEAL_LABELS[t.target.meal].toLowerCase()}
+                  </Badge>
+                )}
               </span>
               {t.holdingReminder && <span className="mt-0.5 block text-xs text-muted">🧊 {t.holdingReminder}</span>}
               {t.notes && <span className="mt-0.5 block text-sm text-muted">{t.notes}</span>}

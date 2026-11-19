@@ -15,7 +15,7 @@ import { TallyMarks } from "../TallyMarks";
 import { act, Badge, Banner, Button, Card, Field, inputCls, Sheet, toast } from "../ui";
 import { PromptSheet, RequestsPanel } from "./RequestsPanel";
 import { ServiceFlow } from "./ServiceFlow";
-import { AdjustSheet, ChangesList, PrepWhileCounting, TexturesCard } from "./CountPanels";
+import { AdjustSheet, ChangesList, HelperStrip, PrepWhileCounting, TexturesCard } from "./CountPanels";
 
 /** Short vibration on supported phones (Android). iPhone Safari has no vibration API, so this is a no-op there. */
 const vibrate = () => {
@@ -294,6 +294,8 @@ function ActiveCount({
         </div>
       )}
 
+      <HelperStrip date={date} meal={meal} />
+
       <ChangesList session={session} />
 
       {practice && !locked && (
@@ -446,8 +448,16 @@ function ActiveCount({
         items={summary.items}
         locked={locked}
         onTap={(levelId, target) => {
-          const slipId = session.mode === "detailed" ? summary.lastSlipId ?? undefined : undefined;
-          if (update((s) => C.tapTexture(s, levelId, target, slipId))) buzz();
+          // one tap = one slip for the entrée + its texture (same double-tap guard as the boxes)
+          const key = `${levelId}:${target}`;
+          const now = performance.now();
+          if (C.isDuplicateTap(lastTap.current, key, now, settings.tapGuardMs ?? 300)) {
+            setIgnoredAt(now);
+            return;
+          }
+          lastTap.current = { key, at: now };
+          if (ignoredAt) setIgnoredAt(0);
+          if (update((s) => C.tapTexturedSlip(s, levelId, target))) buzz();
         }}
       />
 

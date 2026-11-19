@@ -39,6 +39,8 @@ interface BaseEvent {
   id: string;
   seq: number;
   at: string;
+  /** Events recorded by one action (a textured slip, a "switch") share a group and are undone together. */
+  group?: string;
 }
 export type CountEvent =
   | (BaseEvent & { type: "slip"; choice: string; unit?: string; note?: string })
@@ -50,8 +52,6 @@ export type CountEvent =
       target: { kind: "slip"; choice: string } | { kind: "item"; itemKey: string };
       delta: number;
       reason: string;
-      /** Corrections made together (e.g. a "switch") share a group id. */
-      group?: string;
     })
   | (BaseEvent & { type: "complete"; acknowledgements: string[] })
   | (BaseEvent & { type: "reopen"; reason: string });
@@ -237,6 +237,26 @@ export function tapTexture(session: CountSession, levelId: string, target: strin
   return tapItem(s, key, slipId);
 }
 
+/**
+ * One tap on a texture button under an entrée = one slip for that entrée that
+ * needs that IDDSI texture. Records the slip AND the texture together, so the
+ * tally goes up and Undo takes both back.
+ */
+export function tapTexturedSlip(session: CountSession, levelId: string, box: string): CountSession {
+  assertOpen(session);
+  assertChoice(session, box);
+  const opt = session.options.find((o) => o.key === box)!;
+  if (opt.role === "unresolved") throw new Error("Pick a meal");
+  const key = textureKey(levelId, box);
+  let s = session;
+  if (!s.extras.some((e) => e.key === key)) s = { ...s, extras: [...s.extras, { key, label: textureLabel(levelId, opt.label), kind: "texture" }] };
+  const group = newId("g");
+  const unit = s.activeUnit ?? undefined;
+  s = append(s, { type: "slip", choice: box, group, ...(unit ? { unit } : {}) });
+  const slipId = s.events[s.events.length - 1]!.id;
+  return append(s, { type: "item", itemKey: key, slipId, group });
+}
+
 /** Texture counts per tally box (and for drinks), for the count screen and production. */
 export function textureCounts(session: CountSession, items: Record<string, number>): Record<string, { levelId: string; count: number }[]> {
   const out: Record<string, { levelId: string; count: number }[]> = {};
@@ -360,7 +380,14 @@ export function undo(session: CountSession): CountSession {
   assertOpen(session);
   const target = lastUndoable(session);
   if (!target) return session;
-  return append(session, { type: "undo", targetId: target.id });
+  if (!target.group) return append(session, { type: "undo", targetId: target.id });
+  // undo everything recorded by the same action (e.g. slip + its texture)
+  const undone = undoneIds(session);
+  let s = session;
+  for (const e of [...session.events].reverse()) {
+    if (e.group === target.group && UNDOABLE.has(e.type) && !undone.has(e.id)) s = append(s, { type: "undo", targetId: e.id });
+  }
+  return s;
 }
 
 /** Assign a choice to a slip that was first counted as "unclear". */

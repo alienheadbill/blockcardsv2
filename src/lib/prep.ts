@@ -5,7 +5,21 @@
  */
 import { addDays, type ISODate } from "./dates";
 import { newId, nowISO } from "./ids";
-import type { MealService, MenuItem } from "./menu/types";
+import { dayName } from "./dates";
+import type { MealService, MenuItem, MenuItemKind } from "./menu/types";
+
+/** Where a task sits in getting one menu item ready: thaw → make → finish/serve. */
+export type PrepStage = "thaw" | "make" | "finish";
+
+/** The menu item (on a given day's meal) a task is for. */
+export interface PrepTarget {
+  itemId: string;
+  label: string;
+  date: ISODate;
+  meal: MealService;
+  stage: PrepStage;
+  kind?: MenuItemKind;
+}
 
 export interface PrepTask {
   id: string;
@@ -22,6 +36,10 @@ export interface PrepTask {
   doneAt?: string;
   source: "manual" | "suggested" | "template";
   suggestionKey?: string;
+  /** Which menu item / day this task gets ready (lets "made ahead" work). */
+  target?: PrepTarget;
+  /** Hidden because another task already made this item ahead (id of that task). */
+  coveredBy?: string;
   createdAt: string;
 }
 
@@ -43,6 +61,7 @@ export function createTask(input: {
   recipeId?: string;
   source?: PrepTask["source"];
   suggestionKey?: string;
+  target?: PrepTarget;
 }): PrepTask {
   const title = input.title.trim();
   if (!title) throw new Error("Task name is required");
@@ -60,6 +79,7 @@ export function createTask(input: {
     done: false,
     source: input.source ?? "manual",
     ...(input.suggestionKey ? { suggestionKey: input.suggestionKey } : {}),
+    ...(input.target ? { target: input.target } : {}),
     createdAt: nowISO(),
   };
 }
@@ -79,6 +99,7 @@ export interface PrepSuggestion {
   title: string;
   holdingReminder: string;
   reason: string;
+  target?: PrepTarget;
 }
 
 const HOT_HOLD = "Hold hot per facility-approved temperature; log temps.";
@@ -86,7 +107,7 @@ const COLD_HOLD = "Keep refrigerated per facility standard; label & date.";
 const PROTEIN_RE =
   /\b(turkey|chicken|pork|beef|ham|salmon|cod|haddock|swordfish|shrimp|fish|meatballs?|meat ?loaf|kielbasa|steak|roast|liver|cutlet|tips)\b/i;
 
-function shortName(text: string) {
+export function shortName(text: string) {
   return text.split(/[,/]| w\/ | with /i)[0]!.trim();
 }
 
@@ -98,7 +119,8 @@ export function suggestForMeal(date: ISODate, meal: MealService, items: MenuItem
   const out: PrepSuggestion[] = [];
   const add = (item: MenuItem, verb: string, holdingReminder: string, reason: string, taskDate = date, tag = "") => {
     const key = `${date}|${meal}|${item.id}${tag}`;
-    out.push({ key, date: taskDate, meal, title: `${verb} ${shortName(item.text)}`.trim(), holdingReminder, reason });
+    const target: PrepTarget = { itemId: item.id, label: shortName(item.text), date, meal, stage: tag === "|thaw" ? "thaw" : "make", kind: item.kind };
+    out.push({ key, date: taskDate, meal, title: `${verb} ${shortName(item.text)}`.trim(), holdingReminder, reason, target });
   };
   for (const item of items) {
     const t = item.text.toLowerCase();
@@ -134,11 +156,68 @@ export function suggestForMeal(date: ISODate, meal: MealService, items: MenuItem
   return out;
 }
 
-/** Remove suggestions the cook already added or dismissed. */
+/** The finished task that made this menu item ahead of its day, if any. */
+export function madeAhead(tasks: PrepTask[], itemId: string, date: ISODate): PrepTask | undefined {
+  return tasks.find((t) => t.done && t.target?.stage === "make" && t.target.itemId === itemId && t.target.date === date && t.date < date);
+}
+
+/** What's left to do on the day for something made ahead. */
+export function nextStepVerb(kind: MenuItemKind | undefined, label: string): string {
+  if (kind === "soup" || /soup|chowder|stew|chili/i.test(label)) return "Reheat";
+  if (kind === "fruit" || kind === "dessert" || kind === "salad" || /jello|gelatin|salad|parfait/i.test(label)) return "Portion & serve";
+  return "Cook / finish";
+}
+
+/**
+ * Suggestions the cook hasn't added or dismissed. If an item was already made ahead,
+ * its "make" suggestion is replaced with the next step ("Cook / finish Pizza — made ahead Tue").
+ */
 export function pendingSuggestions(suggestions: PrepSuggestion[], tasks: PrepTask[], dismissed: string[]): PrepSuggestion[] {
   const used = new Set([...tasks.map((t) => t.suggestionKey).filter(Boolean), ...dismissed]);
-  return suggestions.filter((s) => !used.has(s.key));
+  const out: PrepSuggestion[] = [];
+  for (const s of suggestions) {
+    const ahead = s.target?.stage === "make" ? madeAhead(tasks, s.target.itemId, s.target.date) : undefined;
+    if (ahead && s.target) {
+      const key = `${s.key}|finish`;
+      if (used.has(key) || used.has(s.key)) continue;
+      out.push({
+        ...s,
+        key,
+        date: s.target.date,
+        title: `${nextStepVerb(s.target.kind, s.target.label)} ${s.target.label} — made ahead ${dayName(ahead.date).slice(0, 3)}`,
+        reason: "Already made ahead",
+        target: { ...s.target, stage: "finish" },
+      });
+      continue;
+    }
+    if (!used.has(s.key)) out.push(s);
+  }
+  return out;
 }
+
+/**
+ * Tick a task done (or undo it). Finishing a "make" task for a later day hides any
+ * other open "make" task for the same item/day (it's covered); unticking brings them back.
+ */
+export function togglePrepInList(tasks: PrepTask[], id: string): PrepTask[] {
+  const task = tasks.find((t) => t.id === id);
+  if (!task) throw new Error("Task not found");
+  const next = toggleDone(task);
+  const tgt = next.target;
+  return tasks.map((t) => {
+    if (t.id === id) return next;
+    if (!tgt || tgt.stage !== "make") return t;
+    const same = t.target?.stage === "make" && t.target.itemId === tgt.itemId && t.target.date === tgt.date;
+    if (next.done && same && !t.done && !t.coveredBy) return { ...t, coveredBy: id };
+    if (!next.done && t.coveredBy === id) {
+      const { coveredBy: _c, ...rest } = t;
+      return rest;
+    }
+    return t;
+  });
+}
+
+export const visible = (t: PrepTask) => !t.coveredBy;
 
 export function applyTemplate(template: PrepTemplate, date: ISODate, meal: MealService | null): PrepTask[] {
   return template.tasks.map((t) =>

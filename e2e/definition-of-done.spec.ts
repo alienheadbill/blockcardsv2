@@ -32,8 +32,8 @@ test("first-release checklist", async ({ page }, testInfo) => {
   // Tally box names are pre-written from the menu and can be rewritten like the notebook
   await expect(page.getByRole("textbox", { name: "Tally box 1" })).toHaveValue("Vegetable Frittata");
   await page.getByRole("button", { name: /Start counting dinner/ }).click();
-  const main = page.getByRole("button", { name: /^Count one Vegetable Frittata/ });
-  const alt = page.getByRole("button", { name: /^Count one Chicken Pot Pie/ });
+  const main = page.getByRole("button", { name: /^Count one Vegetable Frittata\. Now/ });
+  const alt = page.getByRole("button", { name: /^Count one Chicken Pot Pie\. Now/ });
   await tapTimes(main, 15);
   await tapTimes(alt, 31);
   await expect(page.getByRole("radiogroup", { name: "Unit stack" })).toHaveCount(0); // units off by default
@@ -51,7 +51,7 @@ test("first-release checklist", async ({ page }, testInfo) => {
   await page.getByRole("dialog", { name: "Rename tally box" }).getByRole("textbox").fill("Veggfritata");
   await page.getByRole("button", { name: "Save name" }).click();
   await expect(page.getByTestId("count-main")).toHaveText("15");
-  await expect(page.getByRole("button", { name: /^Count one Veggfritata/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Count one Veggfritata\. Now/ })).toBeVisible();
 
   // Prep while counting (replaced the old Notes box)
   await page.getByRole("textbox", { name: "New prep task" }).fill("Pull biscuits for tomorrow");
@@ -203,8 +203,8 @@ test("shopping list items can be deleted", async ({ page }) => {
 test("a bounced double tap counts once; taps on different boxes always count", async ({ page }) => {
   await page.goto("/stann/counts?date=2026-11-16&meal=dinner");
   await page.getByRole("button", { name: /Start counting dinner/ }).click();
-  const main = page.getByRole("button", { name: /^Count one Vegetable Frittata/ });
-  const alt = page.getByRole("button", { name: /^Count one Chicken Pot Pie/ });
+  const main = page.getByRole("button", { name: /^Count one Vegetable Frittata\. Now/ });
+  const alt = page.getByRole("button", { name: /^Count one Chicken Pot Pie\. Now/ });
   await main.dblclick();
   await expect(page.getByTestId("total-meals")).toHaveText("1");
   await expect(page.getByText(/Double tap on the same box ignored/)).toBeVisible();

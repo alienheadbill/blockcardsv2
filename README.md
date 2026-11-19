@@ -53,6 +53,20 @@ npm run typecheck
 npm run build && npm run test:e2e   # Playwright: walks the release checklist on an iPhone-sized screen
 ```
 
+## Made-ahead prep
+
+Add something for a later day from the Prep list card (e.g. tomorrow's pizza) and tick it done: that day's
+"make pizza" task disappears and its suggestion becomes the next step ("Cook / finish Pizza — made ahead Wed",
+"Reheat…" for soups, "Portion & serve…" for cold items). Untick it and everything comes back.
+
+## Kitchen helper
+
+A line under the count — "✓ everything looks right so far" or "⚠ 2 things to check" — and the same notes on
+Today. It's a set of plain rules that run on the phone (no AI, nothing is sent anywhere): a count far from the
+usual for that meal, a menu entrée with no tally box, unclear slips, more textures or "no bun"s than meals,
+requests not diet-checked, the count unfinished within an hour of serving, open prep near service, nothing
+pulled to thaw for tomorrow, no temperatures logged after service. "Got it" hides a note.
+
 ## Profiles (who's cooking)
 
 Tap the name badge under the workspace title (e.g. **👤 Night cook ▾**) to switch profiles or edit them.
@@ -95,10 +109,11 @@ as four steps — **Count → Production → Prep → Ready** — each marked do
    any time (the count stays), or **+ Add a tally box** mid-count.
 3. Build today's prep list right there: the **Prep list** card shows the menu for today, tomorrow and the day
    after — tap an item to add it to today's list, type your own, and check things off.
-4. **Textures (IDDSI)**: tap Puréed (L4), Minced & Moist (L5) or Soft & Bite-Sized (L6) under each entrée as
-   the slips say (Liquidised L3 and Easy to Chew L7 under "More levels"; "Level guide" explains each, with thickened-drink
+4. **Textures (IDDSI)**: for a slip with a texture, tap Puréed (L4), Minced & Moist (L5) or Soft & Bite-Sized (L6)
+   under the entrée **instead of** the big box — it counts the meal in the tally and marks the texture (Undo takes
+   both back), as the slips say (Liquidised L3 and Easy to Chew L7 under "More levels"; "Level guide" explains each, with thickened-drink
    levels on a separate Drinks tab for reference only). These
-   don't change the meal total and show up on Production and prep tasks.
+   texture counts show up on Production and prep tasks.
 4. **Modifications**: tap a suggestion like "+ No bun – Sloppy Joe" or "+ No biscuit – Chicken Pot Pie"
    (or type your own) to count it. They never change the meal total.
 5. **Unclear slip** for anything you can't read — you'll pick the meal before finishing.

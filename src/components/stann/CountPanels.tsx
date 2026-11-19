@@ -1,7 +1,8 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import * as C from "@/lib/counting";
-import { addDays, formatShort, type ISODate } from "@/lib/dates";
+import { addDays, formatShort, localToday, type ISODate } from "@/lib/dates";
+import { checkService } from "@/lib/helper";
 import { ENTREE_TEXTURES, IDDSI_LEVELS, iddsi, MORE_ENTREE_TEXTURES, textureKey } from "@/lib/iddsi";
 import { MEAL_LABELS, type MealService } from "@/lib/menu/types";
 import * as P from "@/lib/prep";
@@ -45,7 +46,9 @@ export function TexturesCard({
         </Button>
       }
     >
-      <p className="mb-2 text-xs text-muted">Count what the slip says (e.g. “IDDSI Level 5: Minced &amp; Moist”). Doesn&apos;t change the meal total.</p>
+      <p className="mb-2 text-xs text-muted">
+        For a slip with a texture (e.g. “IDDSI Level 5: Minced &amp; Moist”), tap here <strong>instead of</strong> the big box — it counts the meal in the tally and marks the texture. Undo takes both back.
+      </p>
       <div className="space-y-3">
         {entrees.map((o) => (
           <div key={o.key}>
@@ -60,7 +63,7 @@ export function TexturesCard({
                     type="button"
                     disabled={locked}
                     onClick={() => onTap(id, o.key)}
-                    aria-label={`Add one ${l.name} level ${l.level} ${o.label}. Now ${n}.`}
+                    aria-label={`Count one ${o.label}, ${l.name} level ${l.level}. Now ${n}.`}
                     className={`flex min-h-14 flex-col justify-center rounded-xl border-2 px-2 text-left active:scale-[0.97] disabled:opacity-50 ${n ? "border-primary bg-accent-soft/50" : "border-line bg-surface"}`}
                   >
                     <span className="flex items-center gap-1 text-[11px] font-bold text-muted">
@@ -126,12 +129,15 @@ export function PrepWhileCounting({ date, meal }: { date: ISODate; meal: MealSer
   const [offset, setOffset] = useState(0);
   const [text, setText] = useState("");
   const prep = state.workspaces.stann.prep;
-  const today = useMemo(() => P.sortTasks(prep.filter((t) => t.date === date)), [prep, date]);
+  const today = useMemo(() => P.sortTasks(prep.filter((t) => P.visible(t) && t.date === date)), [prep, date]);
   const viewDate = addDays(date, offset);
-  const titles = new Set(today.map((t) => t.title.toLowerCase()));
+  // a menu item is "on the list" if any visible task targets it for that day (any stage)
+  const hasTask = (itemId: string, forDate: ISODate, stage?: P.PrepStage) =>
+    prep.some((t) => P.visible(t) && t.target?.itemId === itemId && t.target.date === forDate && (!stage || t.target.stage === stage));
 
   const dayName = (o: number) => (o === 0 ? "Today" : o === 1 ? "Tomorrow" : formatShort(addDays(date, o)));
-  const add = (title: string, forMeal: MealService | null) => act((s) => ops.addPrepTask(s, "stann", { date, meal: forMeal, title }));
+  const add = (title: string, forMeal: MealService | null, target?: P.PrepTarget, taskDate: ISODate = date) =>
+    act((s) => ops.addPrepTask(s, "stann", { date: taskDate, meal: forMeal, title, ...(target ? { target } : {}) }));
 
   return (
     <Card title={`Prep list · ${today.filter((t) => t.done).length}/${today.length}`}>
@@ -142,7 +148,9 @@ export function PrepWhileCounting({ date, meal }: { date: ISODate; meal: MealSer
           </button>
         ))}
       </div>
-      <p className="mb-1 text-xs text-muted">Tap a menu item to add it to today&apos;s prep list.</p>
+      <p className="mb-1 text-xs text-muted">
+        Tap a menu item to add it to today&apos;s prep list. Finish something ahead and it drops off that day — you&apos;ll get the next step (cook, reheat, portion) instead.
+      </p>
       <div className="mb-3 space-y-2">
         {profile.meals.map((m) => {
           const r = ops.mealFor(state, viewDate, m);
@@ -155,20 +163,29 @@ export function PrepWhileCounting({ date, meal }: { date: ISODate; meal: MealSer
                   .filter((i) => !/danish|doughnut|yogurt/i.test(i.text))
                   .map((i) => {
                     const short = C.shortEntreeName(i.text);
-                    const title = offset === 0 ? short : `${short} — for ${dayName(offset).toLowerCase()} ${MEAL_LABELS[m].toLowerCase()}`;
-                    const added = titles.has(title.toLowerCase());
+                    const ahead = P.madeAhead(prep, i.id, viewDate);
+                    // Made ahead on an earlier day → offer the next step instead of making it again.
+                    const stage: P.PrepStage = ahead ? "finish" : "make";
+                    const verb = ahead ? `${P.nextStepVerb(i.kind, short)} ` : "";
+                    // the next step for a made-ahead item goes on ITS day's list; anything else goes on today's
+                    const title = ahead
+                      ? `${verb}${short} — made ahead ${formatShort(ahead.date).split(",")[0]}`
+                      : `${short}${offset === 0 ? "" : ` — for ${dayName(offset).toLowerCase()} ${MEAL_LABELS[m].toLowerCase()}`}`;
+                    const added = ahead ? hasTask(i.id, viewDate, "finish") : hasTask(i.id, viewDate);
+                    const target: P.PrepTarget = { itemId: i.id, label: short, date: viewDate, meal: m, stage, kind: i.kind };
                     return (
                       <button
                         key={i.id}
                         type="button"
                         disabled={added}
-                        onClick={() => add(title, offset === 0 ? m : null)}
+                        onClick={() => (ahead ? add(title, m, target, viewDate) : add(title, offset === 0 ? m : null, target))}
                         aria-label={added ? `${short} already on the prep list` : `Add ${title} to prep`}
-                        className={`min-h-11 rounded-full border-2 px-3 text-sm font-semibold ${added ? "border-ok/50 bg-ok-soft text-ok" : "border-dashed border-line active:bg-surface-2"}`}
+                        className={`min-h-11 rounded-full border-2 px-3 text-sm font-semibold ${added ? "border-ok/50 bg-ok-soft text-ok" : ahead ? "border-accent bg-accent-soft/50" : "border-dashed border-line active:bg-surface-2"}`}
                       >
                         {added ? "✓ " : "+ "}
-                        {i.printedLabel ? `${i.printedLabel}: ` : ""}
+                        {ahead && !added ? `${verb}` : i.printedLabel ? `${i.printedLabel}: ` : ""}
                         {short}
+                        {ahead && <span className="text-xs font-semibold text-muted"> (made ahead)</span>}
                       </button>
                     );
                   })}
@@ -202,7 +219,7 @@ export function PrepWhileCounting({ date, meal }: { date: ISODate; meal: MealSer
                 role="checkbox"
                 aria-checked={t.done}
                 aria-label={`${t.done ? "Mark not done" : "Mark done"}: ${t.title}`}
-                onClick={() => act((s) => ops.updatePrepTask(s, "stann", t.id, P.toggleDone, "prep.toggle"))}
+                onClick={() => act((s) => ops.togglePrep(s, "stann", t.id))}
                 className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border-2 text-xl font-black ${t.done ? "border-ok bg-ok text-white" : "border-ink/60 bg-surface"}`}
               >
                 {t.done ? "✓" : ""}
@@ -370,5 +387,51 @@ export function ChangesList({ session }: { session: C.CountSession }) {
         ))}
       </ul>
     </Card>
+  );
+}
+
+/**
+ * One line under the count: "✓ Looks right" or "2 things to check", tap to see them.
+ * Rule-based checks on this phone — no AI, nothing is sent anywhere.
+ */
+export function HelperStrip({ date, meal }: { date: ISODate; meal: MealService }) {
+  const state = useAppState((s) => s);
+  const [open, setOpen] = useState(false);
+  const [hidden, setHidden] = useState<string[]>([]);
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+  const notes = useMemo(() => checkService(state, date, meal, now, localToday()).filter((n) => !hidden.includes(n.id)), [state, date, meal, now, hidden]);
+  const warn = notes.some((n) => n.level === "warn");
+  if (!notes.length)
+    return (
+      <p className="rounded-xl bg-ok-soft px-3 py-2 text-sm font-semibold text-ok" role="status">
+        ✓ Helper: everything looks right so far
+      </p>
+    );
+  return (
+    <div className={`rounded-xl border-2 px-3 py-2 ${warn ? "border-warn/50 bg-warn-soft" : "border-line bg-surface-2"}`} role="status">
+      <button type="button" className="flex w-full items-center justify-between gap-2 text-left text-sm font-bold" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
+        <span className={warn ? "text-warn" : ""}>
+          {warn ? "⚠" : "ℹ"} Helper: {notes.length === 1 ? notes[0]!.text : `${notes.length} things to check`}
+        </span>
+        {notes.length > 1 && <span aria-hidden>{open ? "▴" : "▾"}</span>}
+      </button>
+      {(open || notes.length === 1) && (
+        <ul className="mt-2 space-y-1">
+          {notes.map((n) => (
+            <li key={n.id} className="flex items-start gap-2 text-sm">
+              <span aria-hidden>{n.level === "warn" ? "⚠" : "ℹ"}</span>
+              <span className="flex-1">{notes.length > 1 ? n.text : "Tap “Got it” if that's expected."}</span>
+              <button type="button" className="shrink-0 text-xs font-semibold text-muted underline" onClick={() => setHidden((h) => [...h, n.id])}>
+                Got it
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }

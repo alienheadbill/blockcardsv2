@@ -11,6 +11,7 @@ import { positionLabel } from "../MenuList";
 import { useProfile } from "../useProfile";
 import { Banner } from "../ui";
 import { useServiceSteps, type StepInfo } from "./ServiceFlow";
+import { checkService } from "@/lib/helper";
 
 /** Suggestions for [from, from+span) including day-ahead pulls for the day after. */
 export function menuSuggestions(state: AppState, from: ISODate, span = 3, meals: readonly MealService[] = MEAL_SERVICES): P.PrepSuggestion[] {
@@ -141,7 +142,7 @@ function ServiceCommand({ state, date, meal, now }: { state: AppState; date: ISO
       <>
         {status.prep.done} of {status.prep.total} done
         {(() => {
-          const open = P.sortTasks(d.prep.filter((t) => t.date === date && (t.meal === meal || !t.meal) && !t.done)).slice(0, 2);
+          const open = P.sortTasks(d.prep.filter((t) => P.visible(t) && t.date === date && (t.meal === meal || !t.meal) && !t.done)).slice(0, 2);
           return open.length ? <span className="block truncate">Next: {open.map((t) => t.title).join(" · ")}</span> : null;
         })()}
       </>
@@ -162,8 +163,13 @@ function ServiceCommand({ state, date, meal, now }: { state: AppState; date: ISO
   if (status.requests.unchecked) attention.push({ text: `${status.requests.unchecked} request(s) not diet-checked yet`, href: `/stann/counts${q}` });
   if (status.production?.needsPortion) attention.push({ text: `${status.production.needsPortion} production item(s) need a portion size`, href: `/stann/production${q}` });
   if (status.temps.outOfRange) attention.push({ text: `${status.temps.outOfRange} temperature reading(s) outside your limits`, href: `/stann/ready${q}` });
-  const overdue = d.prep.filter((t) => !t.done && t.date < date && (!t.meal || t.meal === meal));
+  const overdue = d.prep.filter((t) => P.visible(t) && !t.done && t.date < date && (!t.meal || t.meal === meal));
   if (overdue.length) attention.push({ text: `${overdue.length} prep task(s) from earlier days not done`, href: `/stann/prep${q}` });
+  // the helper's checks (skipping ones already listed above)
+  for (const n of checkService(state, date, meal, now, localToday())) {
+    if (["unclear", "req-unchecked", "req-flagged"].includes(n.id)) continue;
+    attention.push({ text: n.text, href: n.href ?? `/stann/counts${q}` });
+  }
 
   return (
     <section aria-label={`${MEAL_LABELS[meal]} service`} className="overflow-hidden rounded-2xl border-2 border-primary bg-surface shadow-sm">
